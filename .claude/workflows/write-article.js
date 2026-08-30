@@ -1,48 +1,80 @@
 export const meta = {
   name: 'write-article',
-  description: '対象KWからSEO記事を生成（並列調査→構成案コンペ→H2並列執筆→5観点の検証ループ→タイトル最適化）',
-  whenToUse: '年収エージェント案件でKWを1本渡し、WP納品品質の記事を作らせるとき。args.stopAfter="outline" で構成案の確認待ちに入る',
+  description: 'StockSunハウス標準のSTEP①〜⑥で記事を生成（関連KW→インサイト→競合→AIO/PAA→構成→執筆→品質チェック）',
+  whenToUse: '年収エージェント案件でKWを1本渡し、記事を作らせるとき。args.stopAfter="outline" で構成案の確認待ちに入る',
   phases: [
-    { title: '調査', detail: 'SERP・検索意図・カニバリ・USP整合・KWデータを並列取得' },
-    { title: '構成案', detail: '差別化軸の異なる構成案を3本生成し、3名の審査員が採点' },
-    { title: '執筆', detail: 'H2ごとに並列執筆し、セクション単位で推敲' },
-    { title: '統合', detail: '接続・重複除去・文体統一・HTML化' },
-    { title: '検証', detail: 'SEO/表現規制/CVR/可読性/網羅性の5観点で指摘し修正' },
-    { title: '仕上げ', detail: 'タイトル・メタ・FAQ・残課題の確定' },
+    { title: 'STEP1-4 調査', detail: '関連KW分類・ユーザーインサイト・競合上位3記事・AI Overview/PAA・カニバリを並列調査' },
+    { title: 'STEP5 構成設計', detail: 'タイトル3案（王道/疑問解決/CVR重視）とh2/h3階層・CTA配置計画' },
+    { title: 'STEP6 執筆', detail: 'h2単位で並列執筆し、セクションごとに推敲' },
+    { title: '統合', detail: '導入文・まとめ・内部リンクを付けて1本に統合' },
+    { title: '品質チェック', detail: 'チェックリスト準拠の機械監査＋SEO/表現/CVRの監査を通し、指摘を反映' },
   ],
 }
 
 const A = args || {}
 const KW = A.keyword
-const SERVICE = A.service || '年収エージェント'
+const CLIENT = A.client || '年収エージェント'
 const LP = A.lp || '/nensyuagent/'
 const USP = A.usp || '担当キャリアアドバイザーを自分で選べる'
 const RELATED = A.related || []
 const NOTES = A.notes || ''
 const TODAY = A.date || ''
+const DELIVERY = A.delivery || 'ドキュメント納品'
 
 if (!KW) throw new Error('args.keyword（対象KW）が必要です')
 
+// StockSunハウス標準の執筆ルール（articles/*/prompts/記事制作プロンプト.md 準拠）
+const SPEC = `
+【基本仕様（ハウス標準・厳守）】
+- 文字数：5,000〜8,000字
+- 見出し構造：h2×7〜9本、h3×18〜25本
+- H4タグは使用しない（段落で整理する）
+- h2には必ずh3を2つ以上置く（例外なし）
+- FAQはh3タグで構成し、6〜8問
+- CTAは記事内に3〜4箇所
+- 比較表・一覧表を多用する（最低1つは必須）
+- 太字強調は重要ポイント・数値に使う
+- 箇条書きは3〜5項目でまとめる
+- 記事末尾に関連記事リンクを配置する
+
+【導入文パターン（固定）】
+1. 読者の悩みを引用形式（「」）で3つ提示
+2. 結論の先出し or 統計データで興味喚起
+3. ${CLIENT}の強みを簡潔に提示
+4. 記事で解説する内容の概要
+
+【文体・トーン】
+- です・ます調
+- 信頼感のある語り口。読者の不安に寄り添いつつ、具体で説得力を持たせる
+- 専門用語（SIer、SES、上流工程、多重下請け構造など）は初出時に簡潔な解説を付ける
+`
+
 const RULES = `
 【案件前提】
-- サービス：${SERVICE}（LP: ${LP}）
-- USP：${USP}
+- クライアント：${CLIENT}（LP: ${LP}）
+- 差別化要素（USP）：${USP}
 - 関連既存記事：${RELATED.join(', ') || 'なし'}
+- 納品形式：${DELIVERY}
 - 補足指示：${NOTES || 'なし'}
 - 基準日：${TODAY || '未指定'}
 
-【厳守】
-- 出典のない数値は書かない。未取得は本文に入れず「要確認」として報告する
-- 「必ず」「100%」等の効果保証、他社エージェントの誹謗・優劣評価は禁止
-- stock-sun.com は egress ブロックされることがある。WebFetch が EGRESS_BLOCKED を返したら
-  WebSearch 経由の間接情報に切り替え、取れなかった事実は「要確認」に回す
-- Ahrefs が "API units limit reached" を返したら検索Vol/KDは「要取得」と書く。推定禁止
-- リポジトリ内の .claude/skills/write-article/references/ 配下（レギュレーション/構成テンプレート/文体ルール）を
-  必ず読んでから作業する
+${SPEC}
+
+【NG表現・厳守事項】
+- 「必ず年収が上がる」「100%転職できる」等の断定的な保証表現は使用しない
+- 他社転職エージェントの誹謗中傷・断定的な優劣評価はしない（事実の言及のみ）
+- 出典のない数値は書かない。値＋時点＋出典の3点セットが揃わないものは本文に入れず「要確認」に回す
+- 個人が特定できる体験談は書かない（属性のみに抽象化）
+- /column/ 配下はStockSun本体SEOの管理領域。直接編集せず、依頼事項として起票する
+
+【環境の既知の制約】
+- stock-sun.com は WebFetch が EGRESS_BLOCKED を返すことがある。その場合は WebSearch 経由の
+  間接情報に切り替え、裏が取れなかった事実は本文に書かず「要確認」に回す
+- Ahrefs が "API units limit reached" を返したら、それ以上リトライせず「要取得」と書く。推定値は禁止
 `
 
 // ---------------- schemas ----------------
-const S_RECON = {
+const S_RESEARCH = {
   type: 'object',
   properties: {
     summary: { type: 'string' },
@@ -52,58 +84,64 @@ const S_RECON = {
   required: ['summary', 'findings', 'openIssues'],
 }
 
+const S_PAA = {
+  type: 'object',
+  properties: {
+    aiOverviewTrend: { type: 'string', description: 'AI Overviewに出る内容の傾向' },
+    paa: { type: 'array', items: { type: 'string' }, description: 'PAA質問 10〜12問' },
+    faqCandidates: { type: 'array', items: { type: 'string' }, description: '記事に組み込むFAQ候補 6〜8問' },
+    openIssues: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['aiOverviewTrend', 'paa', 'faqCandidates', 'openIssues'],
+}
+
 const S_OUTLINE = {
   type: 'object',
   properties: {
-    angle: { type: 'string', description: 'この構成案の差別化軸' },
-    rationale: { type: 'string', description: 'なぜ上位を抜けるのか' },
-    leadSummary: { type: 'string' },
+    titles: {
+      type: 'array',
+      description: 'タイトル3案（王道型・疑問解決型・CVR重視型の順）',
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string' },
+          title: { type: 'string' },
+          chars: { type: 'integer' },
+          reason: { type: 'string' },
+        },
+        required: ['type', 'title', 'chars', 'reason'],
+      },
+    },
+    recommendedTitleIndex: { type: 'integer' },
+    metaDescription: { type: 'string', description: '120文字以内' },
+    slug: { type: 'string' },
+    leadPlan: { type: 'string', description: '導入文で提示する読者の悩み3つと、先出しする結論' },
     sections: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
           h2: { type: 'string' },
-          purpose: { type: 'string', description: 'このH2が担う役割' },
-          h3: { type: 'array', items: { type: 'string' } },
-          mustInclude: { type: 'array', items: { type: 'string' }, description: '表・例文・一次情報など必須要素' },
+          purpose: { type: 'string' },
+          h3: { type: 'array', items: { type: 'string' }, description: '必ず2つ以上' },
+          mustInclude: { type: 'array', items: { type: 'string' } },
           targetChars: { type: 'integer' },
-          cta: { type: 'string', description: 'このH2直後に置くCTA（不要なら空文字）' },
+          cta: { type: 'string' },
         },
         required: ['h2', 'purpose', 'h3', 'mustInclude', 'targetChars', 'cta'],
       },
     },
+    ctaPlan: { type: 'array', items: { type: 'string' }, description: 'CTA配置計画（位置と文言）' },
+    differentiation: { type: 'string', description: 'この構成でSERP上位3記事に勝てる理由' },
   },
-  required: ['angle', 'rationale', 'leadSummary', 'sections'],
-}
-
-const S_SCORE = {
-  type: 'object',
-  properties: {
-    scores: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          index: { type: 'integer' },
-          score: { type: 'integer', description: '0-100' },
-          strength: { type: 'string' },
-          weakness: { type: 'string' },
-        },
-        required: ['index', 'score', 'strength', 'weakness'],
-      },
-    },
-    bestIndex: { type: 'integer' },
-    graftIdeas: { type: 'array', items: { type: 'string' }, description: '敗者から勝者へ移植すべき要素' },
-  },
-  required: ['scores', 'bestIndex', 'graftIdeas'],
+  required: ['titles', 'recommendedTitleIndex', 'metaDescription', 'slug', 'leadPlan', 'sections', 'ctaPlan', 'differentiation'],
 }
 
 const S_SECTION = {
   type: 'object',
   properties: {
     h2: { type: 'string' },
-    html: { type: 'string', description: '<h2>から始まるHTML断片' },
+    html: { type: 'string' },
     factsToVerify: { type: 'array', items: { type: 'string' } },
   },
   required: ['h2', 'html', 'factsToVerify'],
@@ -114,9 +152,11 @@ const S_BODY = {
   properties: {
     html: { type: 'string' },
     charCount: { type: 'integer' },
+    h2Count: { type: 'integer' },
+    h3Count: { type: 'integer' },
     notes: { type: 'array', items: { type: 'string' } },
   },
-  required: ['html', 'charCount', 'notes'],
+  required: ['html', 'charCount', 'h2Count', 'h3Count', 'notes'],
 }
 
 const S_AUDIT = {
@@ -131,7 +171,7 @@ const S_AUDIT = {
           severity: { type: 'string', description: 'blocker | major | minor' },
           where: { type: 'string' },
           problem: { type: 'string' },
-          fix: { type: 'string', description: '具体的な修正指示' },
+          fix: { type: 'string' },
         },
         required: ['severity', 'where', 'problem', 'fix'],
       },
@@ -140,222 +180,158 @@ const S_AUDIT = {
   required: ['lens', 'issues'],
 }
 
-const S_TITLE = {
-  type: 'object',
-  properties: {
-    candidates: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          title: { type: 'string' },
-          chars: { type: 'integer' },
-          hook: { type: 'string' },
-        },
-        required: ['title', 'chars', 'hook'],
-      },
-    },
-  },
-  required: ['candidates'],
-}
+// ---------------- STEP①〜④ + カニバリ（バリア：全部揃わないと構成が組めない） ----------------
+phase('STEP1-4 調査')
+log(`対象KW「${KW}」／STEP①〜④の調査を開始`)
 
-const S_FINAL = {
-  type: 'object',
-  properties: {
-    title: { type: 'string' },
-    titleAlternatives: { type: 'array', items: { type: 'string' } },
-    metaDescription: { type: 'string' },
-    slug: { type: 'string' },
-    faq: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: { q: { type: 'string' }, a: { type: 'string' } },
-        required: ['q', 'a'],
-      },
-    },
-    openIssues: { type: 'array', items: { type: 'string' } },
-  },
-  required: ['title', 'titleAlternatives', 'metaDescription', 'slug', 'faq', 'openIssues'],
-}
-
-// ---------------- 1. 調査（バリア：全部揃わないと構成が決められない） ----------------
-phase('調査')
-log(`対象KW「${KW}」の調査を開始`)
-
-const RECON_TASKS = [
+const TASKS = [
   {
-    key: 'serp',
-    prompt: `WebSearch を使い「${KW}」の検索結果上位を調べ、次を報告せよ。
-1) 上位10本のURL・タイトル・運営元の種別（大手エージェント自社/比較メディア/個人）
-2) 各記事のH2構成（取得できた範囲で）
-3) 全社が触れている必須論点＝入れないと勝てないトピック
-4) SERPタイプ（how-to / 比較 / 定義 / 体験談）
-5) 上位10本の誰も書いていない論点＝コンテンツギャップ（最重要）
-6) 上位記事の推定文字数レンジ
-findings には箇条書きで事実のみ、推測は書かない。`,
+    key: 'STEP1_関連KW',
+    schema: S_RESEARCH,
+    prompt: `【STEP① 関連KW洗い出し】
+対象KW「${KW}」に対し、関連KWを20〜30語洗い出し、次の3分類に振り分けよ。
+- 情報収集型（Know）：基礎知識・定義を調べる層
+- 比較検討型（Compare）：選択肢を比較する層
+- 購買・行動型（Do/Buy）：具体的な行動を起こす層
+WebSearch のサジェスト・関連検索と、Ahrefs MCP（ToolSearch で読み込む）を使う。
+Ahrefs が "API units limit reached" を返したら検索Volは「要取得」と書き、リトライするな。
+findings には「[分類] KW」の形式で1行1語ずつ列挙せよ。`,
   },
   {
-    key: 'intent',
-    prompt: `「${KW}」で検索する人の検索意図を解体せよ。
-1) 顕在ニーズ（この記事で必ず満たすべき答え）
-2) 潜在ニーズ（検索者が"次に"困ること）
-3) ペルソナ（年代/年収帯/職種/転職検討度/心理状態）
-4) 読者が離脱する瞬間と、その手前で置くべき情報
-5) 潜在ニーズから「${USP}」へ自然に橋渡しする論理の道筋を1本、具体的な文章で示す
-これが記事のCVR設計の芯になる。抽象論ではなく具体で書け。`,
+    key: 'STEP2_インサイト',
+    schema: S_RESEARCH,
+    prompt: `【STEP② ユーザーインサイト分析】
+「${KW}」で検索する読者の心理を3フェーズで整理せよ。
+1. 検索前の状態（悩み・不安・きっかけ）
+2. 検索中の状態（知りたいこと・比較軸）
+3. 検索後の理想状態（ゴール）
+加えて「${CLIENT}に相談するまでの典型的な行動フロー」を設計せよ。
+さらに、導入文で「」で提示すべき読者の悩みを3つ、実際の文言として提案せよ。
+ペルソナ（年代/年収帯/職種/転職検討度）も明示すること。`,
   },
   {
-    key: 'canniba',
-    prompt: `カニバリと自社アセットを調査せよ。
-1) WebSearch で「site:stock-sun.com ${KW}」を調べ、既存記事が同KWを受けていないか確認
-2) 特に /column/ 配下（StockSun本体SEOの管理領域）に競合記事がないか
-3) 競合していた場合の判断（KWをずらす / 本体側に統合提案）を明示
-4) 本記事から張るべき内部リンク先と、逆に本体側へ依頼すべき被リンク設置を列挙
-リポジトリの data/KW候補_*.tsv と docs/articles/ も読んで既存の記事資産を把握すること。`,
+    key: 'STEP3_競合調査',
+    schema: S_RESEARCH,
+    prompt: `【STEP③ 競合調査・分析】
+WebSearch で「${KW}」の検索結果を調べ、SERP上位3記事を次の項目で分析せよ。
+- URL・タイトル・推定文字数
+- 見出し構成（h2/h3の数と内容。取得できた範囲で）
+- CTA配置パターン
+- 強み・弱み
+- ${CLIENT}が勝てるポイント
+加えて、上位3記事の誰も書いていない論点（コンテンツギャップ）を明示せよ。ここが最重要。`,
   },
   {
-    key: 'usp',
-    prompt: `「${SERVICE}」のサービス事実を、出典付きで集めよ。
-WebSearch で stock-sun.com/nensyuagent/ と stock-sun.com/column/annual-income-agent-reputation/ の
-内容を調べる（直接のWebFetchは EGRESS_BLOCKED になる可能性が高い。その場合は検索結果のスニペットから拾う）。
-1) 確認できたサービス事実（USP・求人数・年収チャンネル・アドバイザーの特徴）を、値＋時点＋出典の3点セットで
-2) 「${KW}」の検索者にとって、USPがどう"解"になるかを1段落で
-3) 確認が取れなかった項目（料金・相談形式・担当者指名の正確な仕様など）は openIssues へ
-裏が取れていない事実を findings に混ぜるな。`,
+    key: 'STEP4_AIO_PAA',
+    schema: S_PAA,
+    prompt: `【STEP④ AI Overview・PAA分析】
+「${KW}」について次を調べよ。
+1. AI Overviewに表示される内容の傾向（WebSearchの結果から推定できる範囲で）
+2. PAA（People Also Ask）質問を10〜12問
+3. 記事に組み込むべきFAQセクション候補を6〜8問
+PAAは「${KW}」およびその関連KWで検索し、実際に出てくる質問形を集めること。`,
   },
   {
-    key: 'kwdata',
-    prompt: `Ahrefs MCP（ToolSearch で読み込む）で「${KW}」および関連KWの
-検索ボリューム・KD・関連キーワードを取得せよ。
-"API units limit reached" が返った場合は、それ以上リトライせず
-findings に「Ahrefs APIユニット不足のため未取得」と書き、openIssues に「検索Vol/KDの取得」を入れよ。
-推定値は絶対に書くな。`,
+    key: 'カニバリ_USP',
+    schema: S_RESEARCH,
+    prompt: `【案件固有チェック：カニバリとUSP整合】
+1. WebSearch で「site:stock-sun.com ${KW}」等を調べ、既存記事が同KWを受けていないか確認せよ。
+   特に /column/ 配下（StockSun本体SEOの管理領域）との競合を見る。
+2. リポジトリの data/KW候補_*.tsv と docs/articles/ を読み、既存の記事資産を把握せよ。
+3. 「${CLIENT}」のサービス事実を出典付きで集めよ。WebSearch で stock-sun.com/nensyuagent/ と
+   stock-sun.com/column/annual-income-agent-reputation/ を調べる（WebFetchは EGRESS_BLOCKED になる想定）。
+4. 「${KW}」の検索者にとって、USP「${USP}」がどう"解"になるかを1段落で書け。
+裏が取れていない事実を findings に混ぜるな。取れなかったものは openIssues へ。`,
   },
 ]
 
-const recon = await parallel(
-  RECON_TASKS.map((t) => () =>
-    agent(`${RULES}\n\n【タスク：${t.key}】\n${t.prompt}`, {
-      label: `調査:${t.key}`,
-      phase: '調査',
-      schema: S_RECON,
-    })
+const res = await parallel(
+  TASKS.map((t) => () =>
+    agent(`${RULES}\n\n${t.prompt}`, { label: t.key, phase: 'STEP1-4 調査', schema: t.schema })
   )
 )
 
-const reconOk = recon.filter(Boolean)
-const reconBrief = RECON_TASKS.map((t, i) => {
-  const r = recon[i]
+const paa = res[3]
+const brief = TASKS.map((t, i) => {
+  const r = res[i]
   if (!r) return `### ${t.key}\n(取得失敗)`
+  if (t.key === 'STEP4_AIO_PAA') {
+    return `### ${t.key}\nAI Overview傾向: ${r.aiOverviewTrend}\nPAA:\n${r.paa.map((q) => `- ${q}`).join('\n')}\nFAQ候補:\n${r.faqCandidates.map((q) => `- ${q}`).join('\n')}`
+  }
   return `### ${t.key}\n${r.summary}\n${r.findings.map((f) => `- ${f}`).join('\n')}`
 }).join('\n\n')
 
-const openIssues = reconOk.flatMap((r) => r.openIssues)
-log(`調査完了：${reconOk.length}/${RECON_TASKS.length} 件成功、要確認 ${openIssues.length} 件`)
+const openIssues = res.filter(Boolean).flatMap((r) => r.openIssues || [])
+log(`STEP①〜④完了：${res.filter(Boolean).length}/${TASKS.length}件成功、要確認${openIssues.length}件`)
 
-// ---------------- 2. 構成案コンペ（バリア：全案揃わないと採点できない） ----------------
-phase('構成案')
+// ---------------- STEP⑤ 構成設計 ----------------
+phase('STEP5 構成設計')
 
-const ANGLES = [
-  '網羅性で勝つ：上位10本の論点を全部内包したうえで、実用素材（表・テンプレ・チェックリスト）の密度で差をつける',
-  '課題の再定義で勝つ：検索者が抱えている問題を一段深く捉え直し、その解としてUSPが立ち上がる構成にする',
-  '一次情報で勝つ：年収チャンネル・キャリアアドバイザーの実務知見など、他社が持てない情報を軸に据える',
-]
-
-const outlines = await parallel(
-  ANGLES.map((angle, i) => () =>
-    agent(
-      `${RULES}\n\n【調査結果】\n${reconBrief}\n\n` +
-        `対象KW「${KW}」の記事構成案を1本作れ。\n` +
-        `この案の差別化軸は次で固定する：${angle}\n\n` +
-        `.claude/skills/write-article/references/構成テンプレート.md を読み、骨格に従うこと。\n` +
-        `ただしテンプレは型であって、KWに合わせて増減してよい。\n` +
-        `H2は7〜10本。上位10本の共通論点はすべて内包し、独自H2を2本以上足すこと。\n` +
-        `各H2に、狙う共起語・必須要素・目標文字数・CTAの有無を明記せよ。`,
-      { label: `構成案${i + 1}`, phase: '構成案', schema: S_OUTLINE }
-    )
-  )
+const outline = await agent(
+  `${RULES}\n\n【STEP①〜④の調査結果】\n${brief}\n\n` +
+    `【STEP⑤ タイトル・記事構成設計】\n` +
+    `1) タイトルを3案作れ。type は順に「王道型」「疑問解決型」「CVR重視型」。全角30〜34字。主KW「${KW}」を必ず含む\n` +
+    `2) recommendedTitleIndex で推奨案を1つ選べ\n` +
+    `3) metaDescription は120文字以内\n` +
+    `4) slug は英小文字ハイフン区切り\n` +
+    `5) leadPlan：導入文で「」提示する読者の悩み3つと、先出しする結論\n` +
+    `6) sections：h2を7〜9本。**各h2にh3を2つ以上**、合計h3が18〜25本になるよう配分せよ\n` +
+    `   各h2に purpose / mustInclude（表・比較・データ等）/ targetChars / cta を明記\n` +
+    `   STEP④のFAQ候補6〜8問は、最後のh2「よくある質問」にh3として配置せよ\n` +
+    `7) ctaPlan：CTAを3〜4箇所。導入直後／中盤（デメリット・注意点の後）／記事末尾の配置と文言\n` +
+    `8) differentiation：この構成でSERP上位3記事に勝てる理由\n\n` +
+    `全h2のtargetCharsの合計が5,000〜8,000字に収まるようにせよ。`,
+  { label: '構成設計', phase: 'STEP5 構成設計', schema: S_OUTLINE }
 )
 
-const outlineList = outlines
-  .map((o, i) => (o ? `## 案${i}（${o.angle}）\n勝ち筋: ${o.rationale}\n` + o.sections.map((s) => `- ${s.h2}（${s.purpose} / ${s.targetChars}字）\n  ${s.h3.map((x) => '  - ' + x).join('\n')}`).join('\n') : null))
-  .filter(Boolean)
-  .join('\n\n')
-
-const JUDGES = [
-  { name: '検索順位', focus: '本当に1位を取れるか。上位10本に対する優位性、必須論点の網羅、検索意図との一致' },
-  { name: 'CVR', focus: 'LPへの送客が起きるか。CTA配置の必然性、USPへの橋渡しの自然さ、広告記事に見えないか' },
-  { name: '読者価値', focus: '読者が本当に問題を解決できるか。実用性、離脱しない流れ、読後の行動が明確か' },
-]
-
-const judgments = await parallel(
-  JUDGES.map((j) => () =>
-    agent(
-      `${RULES}\n\n【調査結果】\n${reconBrief}\n\n【構成案（0始まりのindex）】\n${outlineList}\n\n` +
-        `あなたは「${j.name}」の審査員だ。観点：${j.focus}\n` +
-        `各案を0-100で採点し、最良の index と、敗者から勝者へ移植すべき要素を挙げよ。\n` +
-        `点差を付けろ。全案同点は禁止。`,
-      { label: `審査:${j.name}`, phase: '構成案', schema: S_SCORE }
-    )
-  )
-)
-
-const totals = {}
-judgments.filter(Boolean).forEach((j) => j.scores.forEach((s) => { totals[s.index] = (totals[s.index] || 0) + s.score }))
-let bestIdx = 0
-Object.keys(totals).forEach((k) => { if (totals[k] > (totals[bestIdx] || -1)) bestIdx = Number(k) })
-const winner = outlines[bestIdx] || outlines.filter(Boolean)[0]
-const grafts = judgments.filter(Boolean).flatMap((j) => j.graftIdeas)
-log(`構成案コンペ：案${bestIdx}が勝利（合計${totals[bestIdx]}点）／移植要素${grafts.length}件`)
+const h3Total = outline.sections.reduce((n, s) => n + s.h3.length, 0)
+log(`構成完成：h2×${outline.sections.length}／h3×${h3Total}／目標${outline.sections.reduce((n, s) => n + s.targetChars, 0)}字`)
 
 if (A.stopAfter === 'outline') {
   log('構成案までで停止。ユーザーの確認後、resumeFromRunId で執筆フェーズから再開する')
   return {
     stage: 'outline',
     keyword: KW,
-    recon: RECON_TASKS.map((t, i) => ({ key: t.key, result: recon[i] })),
-    outlineCandidates: outlines,
-    competitionScores: totals,
-    winnerIndex: bestIdx,
-    winner,
-    graftIdeas: grafts,
+    research: TASKS.map((t, i) => ({ key: t.key, result: res[i] })),
+    paa,
+    outline,
+    h2Count: outline.sections.length,
+    h3Count: h3Total,
     openIssues,
   }
 }
 
-const outlineBrief = `差別化軸: ${winner.angle}\n勝ち筋: ${winner.rationale}\nリード方針: ${winner.leadSummary}\n` +
-  `敗者からの移植要素:\n${grafts.map((g) => `- ${g}`).join('\n')}`
-
-// ---------------- 3. 執筆（pipeline：H2ごとに書く→推敲。バリアなし） ----------------
-phase('執筆')
-log(`${winner.sections.length}本のH2を並列執筆`)
+// ---------------- STEP⑥ 執筆 ----------------
+phase('STEP6 執筆')
+log(`${outline.sections.length}本のh2を並列執筆`)
 
 const sections = await pipeline(
-  winner.sections.map((s, i) => ({ s, i })),
+  outline.sections.map((s, i) => ({ s, i })),
   ({ s, i }) =>
     agent(
-      `${RULES}\n\n【調査結果】\n${reconBrief}\n\n【採用構成】\n${outlineBrief}\n\n` +
-        `【記事全体のH2一覧（重複回避のため）】\n${winner.sections.map((x, n) => `${n}. ${x.h2}`).join('\n')}\n\n` +
+      `${RULES}\n\n【調査結果】\n${brief}\n\n` +
+        `【記事全体のh2一覧（重複回避のため）】\n${outline.sections.map((x, n) => `${n}. ${x.h2}`).join('\n')}\n` +
+        `【記事タイトル】${outline.titles[outline.recommendedTitleIndex].title}\n\n` +
         `あなたは第${i}セクション「${s.h2}」だけを書く。\n` +
-        `役割: ${s.purpose}\nH3: ${s.h3.join(' / ')}\n必須要素: ${s.mustInclude.join(' / ')}\n目標: ${s.targetChars}字\n` +
-        `CTA: ${s.cta || 'なし'}\n\n` +
-        `.claude/skills/write-article/references/文体ルール.md と レギュレーション.md を必ず読んでから書け。\n` +
-        `<h2>から始まるHTML断片で出力。他セクションの内容は書くな。\n` +
-        `H2直下に必ず結論を1文置け。裏が取れていない数値は書かず factsToVerify に回せ。\n` +
-        `CTAリンクは <a href="${LP}?utm_source=organic&amp;utm_medium=column&amp;utm_campaign=SLUG&amp;utm_content=cta${i}"> の形式で置け。`,
-      { label: `執筆:${s.h2.slice(0, 18)}`, phase: '執筆', schema: S_SECTION }
+        `役割: ${s.purpose}\n` +
+        `h3（この通りに全部使う。過不足なく）: ${s.h3.join(' / ')}\n` +
+        `必須要素: ${s.mustInclude.join(' / ')}\n目標文字数: ${s.targetChars}字\nCTA: ${s.cta || 'なし'}\n\n` +
+        `<h2>から始まるHTML断片で出力。**H4は絶対に使うな**。他セクションの内容は書くな。\n` +
+        `h2直下に結論を1文置け。裏が取れていない数値は書かず factsToVerify に回せ。\n` +
+        `CTAを置く場合のリンクは <a href="${LP}">…</a> の形式にせよ。`,
+      { label: `執筆:${s.h2.slice(0, 16)}`, phase: 'STEP6 執筆', schema: S_SECTION }
     ),
   (draft, { s, i }) =>
     draft
       ? agent(
-          `${RULES}\n\n次のセクションHTMLを推敲せよ。内容は減らさず、質だけ上げる。\n` +
-            `- 1文60字以内に割る／語尾の3連続を崩す／曖昧語を具体に置換\n` +
+          `${RULES}\n\n次のセクションHTMLを推敲せよ。内容は減らさず質だけ上げる。\n` +
+            `- 1文を短く割る／語尾の3連続を崩す／曖昧語を具体に置換\n` +
             `- 「〜と言えるでしょう」等の逃げ表現、AIっぽい定型を排除\n` +
-            `- 3段落続いたら表・箇条書き・囲みを挟む\n` +
+            `- 専門用語（SIer/SES/上流工程/多重下請け等）に初出解説があるか確認\n` +
+            `- H4を使っていないか、h3が指定通り揃っているか確認\n` +
             `- 効果保証・他社批判・出典なし数値がないか最終確認\n\n` +
             `【対象（第${i}セクション: ${s.h2}）】\n${draft.html}`,
-          { label: `推敲:${s.h2.slice(0, 18)}`, phase: '執筆', schema: S_SECTION }
+          { label: `推敲:${s.h2.slice(0, 16)}`, phase: 'STEP6 執筆', schema: S_SECTION }
         )
       : null
 )
@@ -364,32 +340,47 @@ const sectionHtml = sections.filter(Boolean).map((s) => s.html).join('\n\n')
 const factsToVerify = sections.filter(Boolean).flatMap((s) => s.factsToVerify)
 log(`執筆完了：${sections.filter(Boolean).length}セクション／要検証ファクト${factsToVerify.length}件`)
 
-// ---------------- 4. 統合 ----------------
+// ---------------- 統合 ----------------
 phase('統合')
 
 let body = await agent(
-  `${RULES}\n\n【採用構成】\n${outlineBrief}\n\n【要検証ファクト】\n${factsToVerify.map((f) => `- ${f}`).join('\n')}\n\n` +
+  `${RULES}\n\n【導入文の方針】\n${outline.leadPlan}\n\n【CTA配置計画】\n${outline.ctaPlan.map((c) => `- ${c}`).join('\n')}\n\n` +
+    `【要検証ファクト】\n${factsToVerify.map((f) => `- ${f}`).join('\n')}\n\n` +
     `以下は別々のエージェントが書いたセクションHTMLを連結したものだ。1本の記事に統合せよ。\n` +
-    `1) 冒頭にリード文を追加（結論を3行以内で先出し＋記事で分かることの列挙）\n` +
+    `1) 冒頭に導入文を追加。**必ず読者の悩み3つを「」の引用形式で提示**し、結論先出し→${CLIENT}の強み→記事概要の順で書く\n` +
     `2) セクション間の接続を整え、重複した説明を削る\n` +
-    `3) 文体・表記・強調の密度を統一する\n` +
-    `4) 記事末に「まとめ」（箇条書き6点前後）と最終CTAを追加\n` +
-    `5) 裏の取れていない記述には <!-- <<< 要ファクトチェック：… >>> --> のHTMLコメントを付ける\n` +
-    `6) 内部リンクを配置：LP(${LP})へCTA3〜4＋本文中1、関連記事(${RELATED.join(', ')})へ1\n` +
-    `出力は本文HTMLのみ（<html>や<body>は不要）。内容量は減らすな。\n\n` +
+    `3) CTA配置計画どおりにCTAを3〜4箇所置く（リンク先: ${LP}）\n` +
+    `4) 記事末に「まとめ」と関連記事リンク（${RELATED.join(', ') || 'なし'}）を追加\n` +
+    `5) 裏の取れていない記述には <!-- <<< 要ファクトチェック：… >>> --> を付ける\n` +
+    `6) **H4は使わない。h2にはh3が2つ以上。文字数5,000〜8,000字**\n` +
+    `出力は本文HTMLのみ。内容量は減らすな。h2Count / h3Count は実際に数えて返せ。\n\n` +
     `【連結HTML】\n${sectionHtml}`,
   { label: '統合', phase: '統合', schema: S_BODY }
 )
 
-// ---------------- 5. 検証ループ（5観点で指摘→修正、収束するまで最大3周） ----------------
-phase('検証')
+// ---------------- 品質チェック（ハウスのチェックリスト準拠＋監査） ----------------
+phase('品質チェック')
 
 const LENSES = [
-  { name: 'SEO', focus: `主KW「${KW}」と共起語の網羅、見出し構造、上位10本に対する優位性、必須論点の欠落、文字数不足` },
-  { name: '表現規制', focus: 'レギュレーション違反。効果保証・他社の優劣評価・出典なし数値・個人特定・料金の断定' },
-  { name: 'CVR', focus: 'CTAの位置と文言、USPへの橋渡しの自然さ、広告記事に見えていないか、読者の行動が明確か' },
-  { name: '可読性', focus: '文体ルール違反、1文の長さ、語尾の連続、AIっぽい定型、文字の壁、スマホでの読みやすさ' },
-  { name: '網羅性', focus: '上位10本にあって本記事に無い論点、読者が読後に残す疑問、FAQで拾うべき未回答' },
+  {
+    name: 'チェックリスト',
+    focus: `StockSunハウス標準の品質チェックリストに機械的に照合せよ。1項目ずつ実際に数えて判定すること。
+[ ] 文字数が5,000字以上あるか
+[ ] h2にはすべてh3が2つ以上あるか
+[ ] H4タグを使用していないか
+[ ] FAQセクションがh3タグで構成され6〜8問あるか
+[ ] CTAが3箇所以上配置されているか
+[ ] 導入文に読者の悩み3つが「」で提示されているか
+[ ] 具体的な数値・データが含まれているか
+[ ] ${CLIENT}の差別化要素が自然に組み込まれているか
+[ ] NG表現（効果保証・他社批判）が含まれていないか
+[ ] 比較表が最低1つ含まれているか
+[ ] 内部リンクが2本以上含まれているか
+未達の項目はすべて blocker として、どこをどう直すかを fix に書け。`,
+  },
+  { name: 'SEO', focus: `主KW「${KW}」と関連KWの網羅、見出し構造、SERP上位3記事に対する優位性、PAA由来の論点の欠落` },
+  { name: '表現規制', focus: '効果保証・他社の優劣評価・出典なし数値・個人特定・料金の断定。専門用語の初出解説漏れ' },
+  { name: 'CVR', focus: 'CTAの位置と文言、USPへの橋渡しの自然さ、広告記事に見えていないか、読者の次の行動が明確か' },
 ]
 
 let round = 0
@@ -399,84 +390,52 @@ while (round < 3) {
   const audits = await parallel(
     LENSES.map((l) => () =>
       agent(
-        `${RULES}\n\n【調査結果】\n${reconBrief}\n\n` +
-          `あなたは「${l.name}」の観点だけを見る監査役だ。観点：${l.focus}\n` +
+        `${RULES}\n\n【調査結果】\n${brief}\n\n` +
+          `あなたは「${l.name}」の観点だけを見る監査役だ。\n観点：${l.focus}\n\n` +
           `対象記事を批判的に読み、問題を指摘せよ。severity は blocker/major/minor。\n` +
-          `修正案(fix)は「どこをどう直すか」まで具体的に書け。問題がなければ issues を空配列で返せ。\n` +
-          `他の観点の問題は指摘するな。\n\n【記事HTML】\n${body.html}`,
-        { label: `監査:${l.name}(R${round})`, phase: '検証', schema: S_AUDIT }
+          `fix は「どこをどう直すか」まで具体的に。問題がなければ issues を空配列で返せ。\n\n` +
+          `【記事HTML】\n${body.html}`,
+        { label: `監査:${l.name}(R${round})`, phase: '品質チェック', schema: S_AUDIT }
       )
     )
   )
 
   const issues = audits.filter(Boolean).flatMap((a) => a.issues.map((i) => ({ ...i, lens: a.lens })))
   const serious = issues.filter((i) => i.severity === 'blocker' || i.severity === 'major')
-  log(`検証R${round}：指摘${issues.length}件（うち要対応${serious.length}件）`)
+  log(`品質チェックR${round}：指摘${issues.length}件（うち要対応${serious.length}件）`)
 
   if (!serious.length) { remaining = issues; break }
 
   body = await agent(
     `${RULES}\n\n以下の指摘をすべて反映して記事を修正せよ。\n` +
-      `内容量は減らすな。指摘のない箇所は変えるな。相反する指摘があれば読者価値を優先し、notes に判断理由を書け。\n\n` +
+      `内容量は減らすな。指摘のない箇所は変えるな。相反する指摘は読者価値を優先し notes に理由を書け。\n` +
+      `修正後、h2Count / h3Count / charCount は必ず数え直して返せ。\n\n` +
       `【指摘】\n${serious.map((i) => `- [${i.lens}/${i.severity}] ${i.where}｜${i.problem}\n  → ${i.fix}`).join('\n')}\n\n` +
       `【記事HTML】\n${body.html}`,
-    { label: `修正(R${round})`, phase: '検証', schema: S_BODY }
+    { label: `修正(R${round})`, phase: '品質チェック', schema: S_BODY }
   )
   remaining = issues.filter((i) => i.severity === 'minor')
 }
 
-// ---------------- 6. 仕上げ：タイトルコンペ＋メタ＋FAQ ----------------
-phase('仕上げ')
-
-const TITLE_ANGLES = [
-  '主KWを左寄せし、検索者の疑問への即答をそのままタイトルにする王道型',
-  '感情ワード（角が立たない／損しない／気まずくない）でクリックを取る型',
-  '括弧・数字（【例文5つ】等）で視認性を上げる型',
-]
-
-const titleSets = await parallel(
-  TITLE_ANGLES.map((a, i) => () =>
-    agent(
-      `${RULES}\n\n【記事の内容】\n${body.html.slice(0, 6000)}\n\n` +
-        `対象KW「${KW}」の記事タイトル案を3本作れ。方向性：${a}\n` +
-        `全角30〜34字。主KWを必ず含む。根拠のない「No.1」「必ず」は禁止。chars は全角換算の文字数。`,
-      { label: `タイトル案${i + 1}`, phase: '仕上げ', schema: S_TITLE }
-    )
-  )
-)
-
-const allTitles = titleSets.filter(Boolean).flatMap((t) => t.candidates)
-
-const final = await agent(
-  `${RULES}\n\n【調査結果】\n${reconBrief}\n\n【タイトル候補】\n${allTitles.map((t) => `- ${t.title}（${t.chars}字 / ${t.hook}）`).join('\n')}\n\n` +
-    `【残った軽微な指摘】\n${remaining.map((i) => `- [${i.lens}] ${i.problem}`).join('\n') || 'なし'}\n\n` +
-    `【要検証ファクト】\n${factsToVerify.map((f) => `- ${f}`).join('\n')}\n\n` +
-    `【調査時点で未取得だった項目】\n${openIssues.map((f) => `- ${f}`).join('\n')}\n\n` +
-    `次を確定せよ。\n` +
-    `1) title：候補から最もCTRが取れる1本を選ぶ（全角30〜34字）\n` +
-    `2) titleAlternatives：公開4週後のCTR次第で差し替えるA/Bテスト用に2本\n` +
-    `3) metaDescription：全角120字前後。1文目で結論、2文目で独自価値（${USP}）\n` +
-    `4) slug：英小文字ハイフン区切り。短く\n` +
-    `5) faq：記事末FAQの構造化データ用Q&A（記事本文のFAQと一致させること）\n` +
-    `6) openIssues：公開前に人間が確認・取得すべき項目を統合し、重複を除いて列挙\n\n` +
-    `【記事HTML（末尾のFAQを参照すること）】\n${body.html.slice(-8000)}`,
-  { label: 'タイトル・メタ確定', phase: '仕上げ', schema: S_FINAL }
-)
-
-log(`完成：${final.title}／本文${body.charCount}字／要確認${final.openIssues.length}件`)
+const chosen = outline.titles[outline.recommendedTitleIndex]
+log(`完成：${chosen.title}／${body.charCount}字／h2×${body.h2Count}・h3×${body.h3Count}`)
 
 return {
+  stage: 'complete',
   keyword: KW,
-  recon: RECON_TASKS.map((t, i) => ({ key: t.key, result: recon[i] })),
-  outline: { winner, competitionScores: totals, graftIdeas: grafts },
+  research: TASKS.map((t, i) => ({ key: t.key, result: res[i] })),
+  paa,
+  outline,
+  title: chosen.title,
+  titleAlternatives: outline.titles.filter((_, i) => i !== outline.recommendedTitleIndex),
+  metaDescription: outline.metaDescription,
+  slug: outline.slug,
   bodyHtml: body.html,
   charCount: body.charCount,
+  h2Count: body.h2Count,
+  h3Count: body.h3Count,
   auditRounds: round,
   remainingMinorIssues: remaining,
-  title: final.title,
-  titleAlternatives: final.titleAlternatives,
-  metaDescription: final.metaDescription,
-  slug: final.slug,
-  faq: final.faq,
-  openIssues: final.openIssues,
+  factsToVerify,
+  openIssues,
 }
