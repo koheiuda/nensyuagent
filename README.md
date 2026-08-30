@@ -24,6 +24,39 @@ StockSun本体のSEOプロジェクト（`../stocksun`）とは**別プロジェ
   - サービスページへの送客導線として最有力。内部リンク・CTAの見直し余地あり。
   - ※ 記事自体の管理は `../stocksun` 側。本プロジェクトでは送客導線の観点でのみ扱う。
 
+## 記事制作の使い方
+
+対象KWを渡すだけで、調査からWordPress下書き入稿までを一気に実行します。
+
+```
+/write-article 転職エージェント 担当者 変更
+```
+
+内部でオーケストレーション（`.claude/workflows/write-article.js`）が動き、
+並列調査 → 構成案コンペ（3案生成・3審査員で採点）→ H2ごとの並列執筆
+→ 5観点の監査ループ → タイトルコンペ、の順に処理します。
+
+| ファイル | 役割 |
+|---|---|
+| `.claude/skills/write-article/SKILL.md` | 実行プロンプト本体 |
+| `.claude/skills/write-article/references/` | レギュレーション・構成テンプレート・文体ルール |
+| `.claude/workflows/write-article.js` | オーケストレーション定義 |
+| `tools/wp_draft.py` | WordPress下書き入稿（REST API） |
+| `docs/執筆フロー_年収エージェント_20260830.md` | 人が読む用の方針ドキュメント |
+
+### WordPress接続の設定（初回のみ）
+
+WP管理画面 > ユーザー > プロフィール でアプリケーションパスワードを発行し、
+プロジェクトルートに `.env` を作成します（`.gitignore` 済み。**公開リポジトリなので絶対にコミットしない**）。
+
+```
+WP_URL=https://stock-sun.com
+WP_USER=<WPユーザー名>
+WP_APP_PASSWORD=<アプリケーションパスワード>
+```
+
+未設定の場合、記事HTMLと入稿指示書までを納品し、WP入稿は未実施として報告します。
+
 ## ディレクトリ構成
 | フォルダ | 内容 |
 |---|---|
