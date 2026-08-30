@@ -5,3 +5,7 @@ node_modules/
 *.log
 .venv/
 __pycache__/
+
+# YouTube API 認証情報（リポジトリに置かないこと）
+client_secret*.json
+youtube_token.json

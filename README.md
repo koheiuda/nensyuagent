@@ -9,7 +9,20 @@ StockSun本体のSEOプロジェクト（`../stocksun`）とは**別プロジェ
 | 対象サービス | 年収エージェント |
 | サービスURL | https://stock-sun.com/nensyuagent/ |
 | 開始 | 2026-08 |
-| 支援領域 | （要確定：SEO / 広告 / LP改善 / SNS など） |
+| 支援領域 | SEO / LP改善 / YouTube（2026-08 追加）／広告は要確定 |
+
+## YouTube
+| 項目 | 内容 |
+|---|---|
+| チャンネルID | `UCwrivK-bKlDu6ZJzC01GPBw` |
+| チャンネルURL | https://www.youtube.com/channel/UCwrivK-bKlDu6ZJzC01GPBw |
+| アナリティクス権限 | 担当者アカウントに付与済み（2026-08-30。権限レベルは要確認） |
+| 管理シート | https://docs.google.com/spreadsheets/d/1lzxCOEannP-2jyWei2dSbFplO2ViD6k87zsLutvZh7s/edit?gid=23164176#gid=23164176 |
+
+- 運用設計：`docs/YouTube_運用設計.md`
+- ヒアリング項目：`docs/YouTube_キックオフ_ヒアリング項目.md`
+- 定例レポート雛形：`docs/YouTube定例レポート_テンプレート.md`
+- データ取得スクリプト：`tools/youtube_analytics_export.py`
 
 ## チャットワーク
 | ルーム | URL | 用途 |
@@ -28,6 +41,7 @@ StockSun本体のSEOプロジェクト（`../stocksun`）とは**別プロジェ
 | フォルダ | 内容 |
 |---|---|
 | `data/` | CSV・TSV・JSON等のデータファイル |
+| `data/youtube/` | YouTube Analytics のエクスポート、UTM対応表 |
 | `docs/` | レポート・議事録・指示書・分析メモ |
 | `tools/` | 取得・集計スクリプト |
 
@@ -37,5 +51,7 @@ StockSun本体のSEOプロジェクト（`../stocksun`）とは**別プロジェ
 - 競合（他の転職エージェント）と差別化ポイント
 - 予算・工数・レポーティング頻度
 - 既存の広告アカウント／SNSアカウントの有無
+- YouTube の支援スコープ（企画／台本／撮影／編集／分析のどこまで）と体制
+- 管理シートの共有範囲（現状、Claude 側の接続アカウントからは開けない）
 
 詳細は `docs/キックオフ_ヒアリング項目.md` を参照。
