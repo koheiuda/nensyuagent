@@ -126,28 +126,52 @@ args = {
 
 ---
 
-## Step 3：WordPress 下書き納品
+## Step 3：納品
+
+納品形式は `args.delivery` で決まる。**既定は Google ドキュメント納品。**
+
+### 3-A. Google ドキュメント納品（既定）
+
+Google Drive コネクタ（`mcp__Google_Drive__create_file`）で直接作成する。
+本文HTMLを `contentMimeType: "text/html"` で渡すと、見出し・表・箇条書きを保ったまま
+Google ドキュメントに変換される。
+
+```
+mcp__Google_Drive__create_file({
+  title: "年収エージェント_<KW概要>_記事原稿_<YYYYMMDD>",
+  textContent: "<記事HTML>",
+  contentMimeType: "text/html"
+})
+```
+
+手順：
+1. 納品用HTMLを組み立てる。**冒頭に納品ヘッダー**（対象KW／タイトル／メタディスクリプション／
+   スラッグ／文字数／h2・h3本数／公開前チェック項目）を付ける
+2. `create_file` で作成し、返ってきた `id` と `webViewLink` を控える
+3. 共有が必要なら `mcp__Google_Drive__share_file` で権限を付与する
+   （**共有先メールアドレスは必ずユーザーに確認してから。勝手に外部共有しない**）
+4. 同じHTMLを `docs/articles/` にも保存してリポジトリに残す
+
+> 御社の `stocksun/tools/auth_gdoc.py` はWindowsローカルパスのOAuth前提のため、
+> リモート実行環境では使えない。Drive コネクタを使うこと。
+
+### 3-B. WordPress 下書き納品（`delivery` が WP 指定のとき）
 
 ```bash
-python3 tools/wp_draft.py \
-  --html   docs/articles/<記事名>_本文_<YYYYMMDD>.html \
-  --title  "<タイトル>" \
-  --slug   "<スラッグ>" \
-  --meta   "<メタディスクリプション>" \
-  --status draft
+python3 tools/wp_draft.py --html <HTMLパス> --title "<タイトル>" --slug <スラッグ> --status draft
 ```
 
 - 認証は `.env`（gitignore済み）の `WP_URL` / `WP_USER` / `WP_APP_PASSWORD` から読む
 - **`--status draft` 以外は使わない。** 公開はクライアント承認後に人間が行う
-- 認証情報が無ければスクリプトが手順を出して停止する。
-  その場合は**入稿指示書と本文HTMLまでを納品物として提示し、WP入稿が未実施であることを明示する**
+- 認証情報が無ければスクリプトが手順を出して停止する。その場合は
+  **記事HTMLと入稿指示書までを納品物として提示し、WP入稿が未実施であることを明示する**
 
-投稿後：
-1. 返ってきた下書きURLを控える
-2. スマホ幅で `<pre>` の例文・表の折返し・CTAボタンを目視確認する
-3. `noindex` が付いていないことを確認する
+### 3-C. 共通
 
----
+納品後：
+1. 納品先URL（GoogleドキュメントURL または WP編集URL）を控える
+2. 表・箇条書き・見出し階層が崩れていないか確認する
+3. `openIssues`（要確認・要取得）をユーザーに提示する
 
 ## Step 4：コミット & 報告
 
@@ -155,7 +179,7 @@ python3 tools/wp_draft.py \
 2. ユーザーへの報告に必ず含める：
    - 対象KWと**なぜそのKWで勝てるのか**（SERPのどこに空白があったか）
    - 差別化の芯（USPがどう解になっているか）
-   - WP下書きURL、または未入稿である事実と理由
+   - 納品先URL（GoogleドキュメントURL／WP編集URL）、または未納品である事実と理由
    - `openIssues`（要確認・要取得）の一覧
 
 ---
