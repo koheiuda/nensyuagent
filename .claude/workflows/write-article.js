@@ -1,7 +1,7 @@
 export const meta = {
   name: 'write-article',
   description: '対象KWからSEO記事を生成（並列調査→構成案コンペ→H2並列執筆→5観点の検証ループ→タイトル最適化）',
-  whenToUse: '年収エージェント案件でKWを1本渡し、WP納品品質の記事を作らせるとき',
+  whenToUse: '年収エージェント案件でKWを1本渡し、WP納品品質の記事を作らせるとき。args.stopAfter="outline" で構成案の確認待ちに入る',
   phases: [
     { title: '調査', detail: 'SERP・検索意図・カニバリ・USP整合・KWデータを並列取得' },
     { title: '構成案', detail: '差別化軸の異なる構成案を3本生成し、3名の審査員が採点' },
@@ -308,6 +308,21 @@ Object.keys(totals).forEach((k) => { if (totals[k] > (totals[bestIdx] || -1)) be
 const winner = outlines[bestIdx] || outlines.filter(Boolean)[0]
 const grafts = judgments.filter(Boolean).flatMap((j) => j.graftIdeas)
 log(`構成案コンペ：案${bestIdx}が勝利（合計${totals[bestIdx]}点）／移植要素${grafts.length}件`)
+
+if (A.stopAfter === 'outline') {
+  log('構成案までで停止。ユーザーの確認後、resumeFromRunId で執筆フェーズから再開する')
+  return {
+    stage: 'outline',
+    keyword: KW,
+    recon: RECON_TASKS.map((t, i) => ({ key: t.key, result: recon[i] })),
+    outlineCandidates: outlines,
+    competitionScores: totals,
+    winnerIndex: bestIdx,
+    winner,
+    graftIdeas: grafts,
+    openIssues,
+  }
+}
 
 const outlineBrief = `差別化軸: ${winner.angle}\n勝ち筋: ${winner.rationale}\nリード方針: ${winner.leadSummary}\n` +
   `敗者からの移植要素:\n${grafts.map((g) => `- ${g}`).join('\n')}`
