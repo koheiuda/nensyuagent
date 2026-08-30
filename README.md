@@ -23,6 +23,7 @@ StockSun本体のSEOプロジェクト（`../stocksun`）とは**別プロジェ
 - ヒアリング項目：`docs/YouTube_キックオフ_ヒアリング項目.md`
 - 定例レポート雛形：`docs/YouTube定例レポート_テンプレート.md`
 - データ取得スクリプト：`tools/youtube_analytics_export.py`
+- 分析ダッシュボード：`youtube-dashboard/`（Vercel向け。ビルド不要）
 
 ## チャットワーク
 | ルーム | URL | 用途 |
@@ -44,6 +45,7 @@ StockSun本体のSEOプロジェクト（`../stocksun`）とは**別プロジェ
 | `data/youtube/` | YouTube Analytics のエクスポート、UTM対応表 |
 | `docs/` | レポート・議事録・指示書・分析メモ |
 | `tools/` | 取得・集計スクリプト |
+| `youtube-dashboard/` | YouTube分析ダッシュボード（静的HTML＋Serverless Function） |
 
 ## 未確定事項（キックオフで確認）
 - KPI（セッション / CV / リード / 受注）と目標値、計測期間
