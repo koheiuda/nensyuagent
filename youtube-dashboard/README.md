@@ -12,6 +12,7 @@ YouTube と GA4 を **API で直接取得**するダッシュボード。CSVの�
 | `/api/youtube` | YouTube Data API v3 | APIキー | 登録者数・総再生回数・動画一覧・累計再生数 |
 | `/api/youtube-analytics` | YouTube Analytics API v2 | **OAuth リフレッシュトークン** | インプレッション・CTR・視聴維持率・平均視聴時間・登録者増減・トラフィックソース |
 | `/api/ga4` | GA4 Data API v1beta | **サービスアカウント** | `/nensyuagent/` のセッション・CV・参照元・ページ別・YouTube経由の送客 |
+| `/api/gsc` | Search Console API v3 | **サービスアカウント**（GA4と共通） | **指名クエリの推移（主KPI）**・指名クエリ内訳・人名クエリ・ページ別 |
 
 認証方式が3つに分かれるのは仕様上の制約です。
 **YouTube Analytics はサービスアカウントを受け付けません**（チャンネル所有者本人の同意が必要）。
@@ -30,6 +31,8 @@ YouTube と GA4 を **API で直接取得**するダッシュボード。CSVの�
 | `YOUTUBE_CLIENT_SECRET` | OAuthクライアントシークレット | 非公開指標に必要 |
 | `YOUTUBE_REFRESH_TOKEN` | リフレッシュトークン（下記手順で発行） | 非公開指標に必要 |
 | `GA4_PROPERTY_ID` | `506324594` | GA4に必要 |
+| `GSC_SITE_URL` | `sc-domain:stock-sun.com`（ドメインプロパティの場合） | 指名検索に必要 |
+| `GSC_BRAND_QUERY` | 指名語。既定 `年収エージェント` | 任意 |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | サービスアカウントJSON全文（base64も可） | GA4に必要 |
 | `DASHBOARD_USER` / `DASHBOARD_PASSWORD` | APIのBasic認証。**両方設定したときだけ**有効 | 強く推奨 |
 
@@ -85,6 +88,17 @@ HTMLは静的なので誰でも開けますが、**データはAPI経由でし�
 > JSON全文を1行に貼るのが面倒な場合は base64 でも受け付けます:
 > `base64 -w0 service-account.json`
 
+### 4. Search Console（サービスアカウント・GA4と共通）
+1. Google Cloud → **Google Search Console API** を有効化
+2. Search Console → 設定 → **ユーザーと権限** → GA4で使ったのと同じ
+   サービスアカウントのメールアドレスを追加（権限は「制限付き」で足ります）
+3. `GSC_SITE_URL` を設定
+   - ドメインプロパティ：`sc-domain:stock-sun.com`
+   - URLプレフィックス：`https://stock-sun.com/`
+
+> **GA4に追加しただけでは通りません。** Search Console 側は別の権限設定です。
+> データは2〜3日遅れて確定するため、表示期間は自動で3日前までにしています。
+
 ## デプロイ
 
 ### 方法A：GitHub連携（推奨）
@@ -106,6 +120,7 @@ npx vercel --prod
 
 | タブ | 内容 |
 |---|---|
+| 指名検索（主KPI） | 指名クエリの表示回数・クリック・加重平均順位・種類数／人名クエリの表示回数・クリック／指名クエリ表示回数の推移／指名クエリの内訳／エージェント個人ページに来ているクエリ／ページ別 |
 | YouTube | 登録者数・視聴回数・登録者純増・インプレッションCTR・平均視聴維持率・総再生時間のタイル／視聴回数の推移／トラフィックソース／視聴回数トップ10／動画別テーブル（公開データと非公開指標を動画IDで突き合わせ） |
 | 送客（GA4） | セッション・ユーザー・PV・CV・**YouTube経由セッション/CV**のタイル／セッション推移／YouTube経由セッション推移／参照元別／ページ別 |
 

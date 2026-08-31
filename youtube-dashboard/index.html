@@ -139,15 +139,17 @@
   </header>
 
   <div class="tabs" role="tablist">
-    <button class="tab" role="tab" aria-selected="true" data-tab="yt">YouTube</button>
+    <button class="tab" role="tab" aria-selected="true" data-tab="gsc">指名検索（主KPI）</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="yt">YouTube</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="ga">送客（GA4）</button>
   </div>
 
-  <section id="panel-yt"><div id="yt-body"></div></section>
+  <section id="panel-gsc"><div id="gsc-body"></div></section>
+  <section id="panel-yt" class="hide"><div id="yt-body"></div></section>
   <section id="panel-ga" class="hide"><div id="ga-body"></div></section>
 
   <footer>
-    出典：YouTube Data API v3（公開指標）／ YouTube Analytics API v2（非公開指標）／ GA4 Data API（<code>/nensyuagent/</code> 絞り込み）。
+    出典：Search Console API（指名検索）／ YouTube Data API v3（公開指標）／ YouTube Analytics API v2（非公開指標）／ GA4 Data API（<code>/nensyuagent/</code> 絞り込み）。
     GA4・GSC は StockSun 本体と同一プロパティのため、必ずパスで絞り込んでいます。
   </footer>
 </div>
@@ -349,6 +351,101 @@
 
   var days = 90;
 
+  // =================== 指名検索（GSC・主KPI） ===================
+  function renderGSC(r) {
+    var host = document.getElementById('gsc-body');
+    host.innerHTML = '';
+
+    if (r.status === 401) { host.appendChild(authCard(r.path)); return; }
+    if (!r.ok) {
+      if (r.body && r.body.error === 'not_configured') {
+        host.appendChild(setupCard('Search Console 未接続', r.body.message, [
+          'GA4と同じサービスアカウントで構いません（JSONキーは共通）',
+          'Google Cloud で <code>Google Search Console API</code> を有効化',
+          'Search Console → 設定 → ユーザーと権限 → サービスアカウントのメールアドレスを追加',
+          'Vercel の環境変数に <code>GSC_SITE_URL</code> を追加（ドメインプロパティなら <code>sc-domain:stock-sun.com</code>）',
+          'Redeploy して再読み込み'
+        ]));
+      } else {
+        host.appendChild(setupCard('Search Console 取得エラー', (r.body && r.body.message) || '不明なエラー',
+          r.body && r.body.hint ? [r.body.hint] : []));
+      }
+      return;
+    }
+
+    var d = r.body;
+    // GSC はクリック数順で返すため、表示回数の棒グラフ用に並べ替える
+    function byImpressions(a, b) { return b.impressions - a.impressions; }
+    var bd = d.brandDaily || [], pg = d.pages || [];
+    var bq = (d.brandQueries || []).slice().sort(byImpressions);
+    var aq = (d.agentQueries || []).slice().sort(byImpressions);
+    var brandImp = sum(bq, 'impressions'), brandClicks = sum(bq, 'clicks');
+    var agentImp = sum(aq, 'impressions'), agentClicks = sum(aq, 'clicks');
+    // 平均順位は表示回数で加重する（単純平均だと極小クエリに引きずられる）
+    var weightedPos = brandImp
+      ? bq.reduce(function (a, x) { return a + x.position * x.impressions; }, 0) / brandImp : 0;
+
+    host.appendChild(el('<div class="card"><h2>このタブが主KPIです</h2>' +
+      '<p class="note" style="margin:0">運用設計で主目的を「指名検索の創出」に確定しています。' +
+      'YouTube は再生数ではなく、<strong>ここが伸びているか</strong>で評価してください。' +
+      'GSCのデータは' + esc(String(d.lagDays)) + '日遅れて確定するため、' + esc(d.startDate) + ' 〜 ' + esc(d.endDate) + ' を表示しています。</p></div>'));
+
+    host.appendChild(tiles([
+      ['指名クエリ 表示回数', compact(brandImp), '「' + d.brand + '」を含むクエリ'],
+      ['指名クエリ クリック', compact(brandClicks), brandImp ? 'CTR ' + pct(brandClicks / brandImp * 100, 1) : ''],
+      ['平均掲載順位', weightedPos ? weightedPos.toFixed(2) + ' 位' : '—', '表示回数で加重'],
+      ['指名クエリ 種類数', nf(bq.length), '掛け合わせを含む'],
+      ['人名クエリ 表示回数', compact(agentImp), 'エージェント個人ページ経由'],
+      ['人名クエリ クリック', compact(agentClicks), agentImp ? 'CTR ' + pct(agentClicks / agentImp * 100, 1) : '']
+    ]));
+
+    if (bd.length) {
+      host.appendChild(card('指名クエリ 表示回数の推移',
+        'これが伸びていれば施策は効いています。順位ではなく母数を見ます。45日を超える期間は週次合計。',
+        columnChart(dailyPoints(bd, 'date', 'impressions', '表示回数'))));
+    }
+
+    if (bq.length) {
+      host.appendChild(card('指名クエリの内訳（上位' + Math.min(bq.length, 20) + '）',
+        'どんな掛け合わせで検索されているか。新しい掛け合わせが増えるのは認知が広がったサイン。',
+        barChart(bq.slice(0, 20).map(function (x) {
+          return { label: x.query, value: x.impressions,
+            tip: '<b>' + esc(x.query) + '</b><span class="r">表示 ' + esc(nf(x.impressions)) +
+                 '<br>クリック ' + esc(nf(x.clicks)) + '<br>CTR ' + esc(pct(x.ctr, 1)) +
+                 '<br>平均順位 ' + esc(x.position.toFixed(1)) + '</span>' };
+        }), { format: compact })));
+    }
+
+    if (aq.length) {
+      host.appendChild(card('エージェント個人ページに来ているクエリ（上位' + Math.min(aq.length, 20) + '）',
+        '人名検索が効いているかの実測。「人を立てる企画」の成果はここに出ます。',
+        barChart(aq.slice(0, 20).map(function (x) {
+          return { label: x.query, value: x.impressions,
+            tip: '<b>' + esc(x.query) + '</b><span class="r">表示 ' + esc(nf(x.impressions)) +
+                 '<br>クリック ' + esc(nf(x.clicks)) + '<br>平均順位 ' + esc(x.position.toFixed(1)) + '</span>' };
+        }), { variant: 'alt', format: compact })));
+    }
+
+    if (pg.length) {
+      var cols = [
+        { key: 'page', head: 'ページ', render: function (x) {
+          return '<a href="' + esc(x.page) + '" target="_blank" rel="noopener">' +
+                 esc(String(x.page).replace(/^https?:\/\/[^/]+/, '')) + '</a>'; } },
+        { key: 'clicks', head: 'クリック', num: true, render: function (x) { return esc(nf(x.clicks)); } },
+        { key: 'impressions', head: '表示回数', num: true, render: function (x) { return esc(nf(x.impressions)); } },
+        { key: 'ctr', head: 'CTR', num: true, render: function (x) { return esc(pct(x.ctr, 2)); } },
+        { key: 'position', head: '平均順位', num: true, render: function (x) { return esc(x.position.toFixed(1)); } }
+      ];
+      host.appendChild(card('ページ別（' + d.pathPrefix + '）',
+        '表示回数はあるのにCTRが低いページは、タイトルと説明文の見直し余地があります。', sortableTable(cols, pg)));
+    }
+
+    if (d.failed && Object.keys(d.failed).length) {
+      host.appendChild(setupCard('一部のレポートが取得できませんでした',
+        Object.keys(d.failed).join(', ') + ' が失敗しています。', [esc(d.failed[Object.keys(d.failed)[0]])]));
+    }
+  }
+
   // =================== YouTube ===================
   function renderYouTube(pub, ana) {
     var host = document.getElementById('yt-body');
@@ -549,8 +646,14 @@
   // =================== 読み込み ===================
   function loadAll() {
     days = parseInt(document.getElementById('range').value, 10) || 90;
-    document.getElementById('yt-body').innerHTML = '<div class="card"><p class="note">読み込み中…</p></div>';
-    document.getElementById('ga-body').innerHTML = '<div class="card"><p class="note">読み込み中…</p></div>';
+    ['gsc-body', 'yt-body', 'ga-body'].forEach(function (id) {
+      document.getElementById(id).innerHTML = '<div class="card"><p class="note">読み込み中…</p></div>';
+    });
+
+    getJSON('/api/gsc?days=' + days).then(renderGSC).catch(function (e) {
+      document.getElementById('gsc-body').innerHTML = '';
+      document.getElementById('gsc-body').appendChild(setupCard('通信エラー', e.message, []));
+    });
 
     Promise.all([
       getJSON('/api/youtube?max=200'),
@@ -571,9 +674,8 @@
     t.addEventListener('click', function () {
       Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
         x.setAttribute('aria-selected', String(x === t));
+        document.getElementById('panel-' + x.dataset.tab).classList.toggle('hide', x !== t);
       });
-      document.getElementById('panel-yt').classList.toggle('hide', t.dataset.tab !== 'yt');
-      document.getElementById('panel-ga').classList.toggle('hide', t.dataset.tab !== 'ga');
     });
   });
   document.getElementById('reload').addEventListener('click', loadAll);

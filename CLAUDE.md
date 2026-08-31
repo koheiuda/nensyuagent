@@ -39,6 +39,8 @@ KPI・体制・レポートラインが異なるため、**別プロジェクト
 - 認証情報（APIキー・OAuthトークン・サービスアカウントJSON）は Vercel の環境変数のみに置き、リポジトリにも会話にも絶対に置かない
 - GA4 は本体と同一プロパティのため、API側で `pagePath` を `/nensyuagent/` に絞り込む（`api/ga4.js`）
 - GA4プロパティID：506324594
+- GSCも同じサービスアカウントで取得する（`api/gsc.js`）。ただしSearch Console側にも別途ユーザー追加が必要
+- **主KPIは指名検索**（`docs/YouTube_運用設計.md` 第1章で確定）。再生数だけで評価しない
 
 ## 出力ルール
 - CSV・TSV・JSON → `data/`
