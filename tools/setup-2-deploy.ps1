@@ -10,22 +10,15 @@
 
   YouTubeのOAuth（非公開指標）は任意。3つとも渡したときだけ登録する。
 
-.PARAMETER GscSiteUrl
-  Search Console のプロパティ。
-    ドメインプロパティ      → sc-domain:stock-sun.com
-    URLプレフィックス       → https://stock-sun.com/
-
 .EXAMPLE
-  .\tools\setup-2-deploy.ps1 -GscSiteUrl "sc-domain:stock-sun.com"
+  .\tools\setup-2-deploy.ps1
 
 .EXAMPLE
   # Basic認証もかける場合
-  .\tools\setup-2-deploy.ps1 -GscSiteUrl "sc-domain:stock-sun.com" `
-      -DashboardUser kohei -DashboardPassword "強めのパスワード"
+  .\tools\setup-2-deploy.ps1 -DashboardUser kohei -DashboardPassword "強めのパスワード"
 #>
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory = $true)][string]$GscSiteUrl,
   [string]$Ga4PropertyId = "506324594",
   [string]$ProjectName = "nensyuagent-dashboard",
   [string]$KeyDir = (Join-Path $env:USERPROFILE ".nensyuagent"),
@@ -69,12 +62,6 @@ if (-not (Test-Path $state.keyFile)) {
 }
 Ok "サービスアカウント: $($state.serviceAccountEmail)"
 
-# GSC_SITE_URL の形式を軽く検証しておく（ここの取り違えが最も多い）
-if ($GscSiteUrl -notmatch '^(sc-domain:[^/]+|https?://.+/)$') {
-  Warn "GscSiteUrl の形式が想定と異なります: $GscSiteUrl"
-  Warn "ドメインプロパティなら 'sc-domain:stock-sun.com'、URLプレフィックスなら 'https://stock-sun.com/' です。"
-}
-
 # ---------- 初回デプロイ ----------
 Step "Vercelへデプロイ（初回）"
 
@@ -97,7 +84,6 @@ $saB64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($state.keyFile))
 
 $vars = [ordered]@{
   "GA4_PROPERTY_ID"             = $Ga4PropertyId
-  "GSC_SITE_URL"                = $GscSiteUrl
   "GOOGLE_SERVICE_ACCOUNT_JSON" = $saB64
   "YOUTUBE_API_KEY"             = $state.apiKey
 }
@@ -153,9 +139,8 @@ Write-Host @"
 
 上に表示されたURLを開いて確認してください。
 
-  指名検索（主KPI）  … GA4と同じサービスアカウントで取得
-  送客（GA4）        … /nensyuagent/ に絞り込み済み
-  YouTube            … 公開指標のみ（OAuth未設定の場合）
+  YouTube分析        … 公開指標のみ（OAuth未設定の場合）
+  サイト送客・CV     … GA4を /nensyuagent/ に絞り込み済み
 
 Basic認証をかけた場合は、画面の「認証する」ボタンを一度押してから
 再読み込みしてください。
@@ -163,9 +148,6 @@ Basic認証をかけた場合は、画面の「認証する」ボタンを一度
 【権限エラーが出たら】
   GA4のエラー   → プロパティ列のアクセス管理に $($state.serviceAccountEmail) を
                    「閲覧者」で追加したか確認
-  GSCのエラー   → Search Console 側にも別途追加が必要。
-                   GSC_SITE_URL の形式（sc-domain: の有無、末尾スラッシュ）も確認
-
 【後始末】
   Vercelに登録できたので、手元の鍵はもう不要です：
       Remove-Item "$($state.keyFile)"

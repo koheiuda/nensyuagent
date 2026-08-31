@@ -6,14 +6,13 @@
   次を自動でやる：
     - GCPプロジェクトの作成（既存を指定してもよい）
     - 必要なAPIの有効化
-    - サービスアカウントの作成とJSON鍵の発行（GA4 / Search Console 用）
+    - サービスアカウントの作成とJSON鍵の発行（GA4用）
     - YouTube Data API v3 に限定したAPIキーの発行
 
   自動化できないもの（Googleがコンソール操作か人間の同意を要求するため）：
     - OAuth同意画面の設定
     - OAuthクライアント（デスクトップアプリ）の作成
     - GA4プロパティへのユーザー追加
-    - Search Console へのユーザー追加   ※ユーザー管理APIが存在しない
 
   完了後、次にやるコンソール操作の一覧を表示する。
 
@@ -84,7 +83,6 @@ Step "APIの有効化（少し時間がかかります）"
 
 $apis = @(
   "analyticsdata.googleapis.com",      # GA4（送客タブ）
-  "searchconsole.googleapis.com",      # Search Console（指名検索タブ・主KPI）
   "youtube.googleapis.com",            # YouTube Data API v3（公開指標）
   "youtubeanalytics.googleapis.com",   # YouTube Analytics（非公開指標）
   "apikeys.googleapis.com"             # APIキーをCLIから作るのに必要
@@ -95,7 +93,7 @@ foreach ($api in $apis) {
 }
 
 # ---------- サービスアカウント ----------
-Step "サービスアカウントの準備（GA4 と Search Console 用）"
+Step "サービスアカウントの準備（GA4用）"
 
 $saEmail = "$ServiceAccountName@$ProjectId.iam.gserviceaccount.com"
 $saExists = (gcloud iam service-accounts describe $saEmail --project=$ProjectId --format="value(email)" 2>$null)
@@ -180,19 +178,7 @@ Write-Host @"
     ※アカウント列ではなくプロパティ列です。対象は 506324594。
 
 ----------------------------------------------------------------
-[2] Search Console に権限を渡す
-    https://search.google.com/search-console
-    プロパティ stock-sun.com を選択
-    → 設定 → ユーザーと権限 → ユーザーを追加
-    → 上のメールアドレス / 権限は「制限付き」
-
-    ※GA4に追加しただけでは通りません。別の設定です。
-    ※このときプロパティの種類を確認してください：
-        ドメイン           → GSC_SITE_URL = sc-domain:stock-sun.com
-        URLプレフィックス  → GSC_SITE_URL = https://stock-sun.com/
-
-----------------------------------------------------------------
-[3] OAuth同意画面を設定する（YouTubeの非公開指標用）
+[2] OAuth同意画面を設定する（YouTubeの非公開指標用）
     https://console.cloud.google.com/apis/credentials/consent?project=$ProjectId
 
     ★User Type で「内部」を選べるなら必ず内部にしてください。
@@ -200,7 +186,7 @@ Write-Host @"
       外部しか選べない場合は、同意画面を「本番環境に公開」まで進めてください。
 
 ----------------------------------------------------------------
-[4] OAuthクライアントを作る
+[3] OAuthクライアントを作る
     https://console.cloud.google.com/apis/credentials?project=$ProjectId
     → 認証情報を作成 → OAuth クライアント ID
     → アプリケーションの種類は【デスクトップアプリ】
@@ -214,11 +200,11 @@ Write-Host @"
 
 ----------------------------------------------------------------
 
-上の [1][2] が終われば、次を実行してデプロイできます：
+上の [1] が終われば、次を実行してデプロイできます：
 
-    .\tools\setup-2-deploy.ps1 -GscSiteUrl "sc-domain:stock-sun.com"
+    .\tools\setup-2-deploy.ps1
 
-[3][4] は後回しで構いません。YouTubeの非公開指標が出ないだけです。
+[2][3] は後回しで構いません。YouTubeの非公開指標が出ないだけです。
 
 "@ -ForegroundColor White
 

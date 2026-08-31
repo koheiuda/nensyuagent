@@ -1,20 +1,16 @@
 #!/usr/bin/env bash
 # Vercelへのデプロイと環境変数登録（フェーズ2）。
-# 使い方: ./tools/setup-2-deploy.sh "sc-domain:stock-sun.com"
+# 使い方: ./tools/setup-2-deploy.sh
 #   任意: DASHBOARD_USER / DASHBOARD_PASSWORD を環境変数で渡すとBasic認証をかける
 #   任意: YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / YOUTUBE_REFRESH_TOKEN で非公開指標も有効化
 set -euo pipefail
 
-GSC_SITE_URL="${1:-}"
 GA4_PROPERTY_ID="${GA4_PROPERTY_ID:-506324594}"
 KEY_DIR="${KEY_DIR:-$HOME/.nensyuagent}"
 
 step() { printf '\n==> %s\n' "$1"; }
 ok()   { printf '    OK  %s\n' "$1"; }
 warn() { printf '    !   %s\n' "$1"; }
-
-[ -n "$GSC_SITE_URL" ] || {
-  echo "使い方: $0 \"sc-domain:stock-sun.com\"  （Search Consoleのプロパティ形式に合わせてください）"; exit 1; }
 
 step "事前チェック"
 command -v npx >/dev/null || { echo "npx が見つかりません。Node.js をインストールしてください。"; exit 1; }
@@ -37,12 +33,6 @@ SA_EMAIL="$(read_state serviceAccountEmail)"
 [ -f "$KEY_FILE" ] || { echo "サービスアカウントの鍵が見つかりません: $KEY_FILE"; exit 1; }
 ok "サービスアカウント: $SA_EMAIL"
 
-case "$GSC_SITE_URL" in
-  sc-domain:*|https://*/|http://*/) ;;
-  *) warn "GSC_SITE_URL の形式が想定と異なります: $GSC_SITE_URL"
-     warn "ドメインプロパティなら 'sc-domain:stock-sun.com'、URLプレフィックスなら 'https://stock-sun.com/'";;
-esac
-
 step "Vercelへデプロイ（初回）"
 cd "$APP_DIR"
 npx --yes vercel@latest deploy --prod --yes
@@ -63,7 +53,6 @@ set_env() {  # $1=名前 $2=値
 }
 
 set_env GA4_PROPERTY_ID "$GA4_PROPERTY_ID"
-set_env GSC_SITE_URL "$GSC_SITE_URL"
 set_env GOOGLE_SERVICE_ACCOUNT_JSON "$SA_B64"
 set_env YOUTUBE_API_KEY "$API_KEY"
 
@@ -95,8 +84,6 @@ cat <<TXT
 
 権限エラーが出たら:
   GA4  → プロパティ列のアクセス管理に $SA_EMAIL を「閲覧者」で追加したか
-  GSC  → Search Console 側にも別途追加が必要。GSC_SITE_URL の形式も確認
-
 後始末（Vercelに入ったので手元の鍵は不要です）:
   rm "$KEY_FILE" "$STATE"
   ※ setup-state.json にはAPIキーが入っています。

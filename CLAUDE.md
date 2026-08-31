@@ -33,14 +33,13 @@ KPI・体制・レポートラインが異なるため、**別プロジェクト
 - 取得スクリプトは `tools/youtube_analytics_export.py`（OAuth情報はリポジトリ外・環境変数で指定）
 - 定例レポートは `docs/YouTube定例レポート_テンプレート.md` を複製して作成
 - 「再生数が伸びた」で終わらせない。必ず送客（`/nensyuagent/` へのセッション・CV）まで接続して評価する
-- GA4・GSC は本体と同一プロパティのため、YouTube経由の評価でも必ず `/nensyuagent/` でパス絞り込みを行う
+- GA4 は本体と同一プロパティのため、YouTube経由の評価では必ず `/nensyuagent/` でパス絞り込みを行う
 - 概要欄・終了画面のリンクは UTM 付きで統一し、動画IDとの対応は `data/youtube/utm_mapping.csv` で管理する
 - 分析ダッシュボードは `youtube-dashboard/`（Vercel・ビルド不要・依存ゼロ）。YouTube Data API / YouTube Analytics API / GA4 Data API を直接叩く
 - 認証情報（APIキー・OAuthトークン・サービスアカウントJSON）は Vercel の環境変数のみに置き、リポジトリにも会話にも絶対に置かない
 - GA4 は本体と同一プロパティのため、API側で `pagePath` を `/nensyuagent/` に絞り込む（`api/ga4.js`）
 - GA4プロパティID：506324594
-- GSCも同じサービスアカウントで取得する（`api/gsc.js`）。ただしSearch Console側にも別途ユーザー追加が必要
-- **主KPIは指名検索**（`docs/YouTube_運用設計.md` 第1章で確定）。再生数だけで評価しない
+- YouTube分析ダッシュボードはYouTube Analyticsを主画面、GA4の送客・CVを補助画面とする。Search Consoleは載せない
 
 ## 出力ルール
 - CSV・TSV・JSON → `data/`

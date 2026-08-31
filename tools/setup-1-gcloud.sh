@@ -3,7 +3,7 @@
 # PowerShell版 tools/setup-1-gcloud.ps1 の macOS / Linux / Git Bash 版。
 #
 # 自動化できないもの（Googleがコンソール操作か人間の同意を要求するため）:
-#   OAuth同意画面 / OAuthクライアント作成 / GA4へのユーザー追加 / Search Consoleへのユーザー追加
+#   OAuth同意画面 / OAuthクライアント作成 / GA4へのユーザー追加
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-nensyuagent-dash-$RANDOM}"
@@ -33,13 +33,13 @@ fi
 gcloud config set project "$PROJECT_ID" >/dev/null
 
 step "APIの有効化（少し時間がかかります）"
-for api in analyticsdata.googleapis.com searchconsole.googleapis.com \
+for api in analyticsdata.googleapis.com \
            youtube.googleapis.com youtubeanalytics.googleapis.com apikeys.googleapis.com; do
   gcloud services enable "$api" --project="$PROJECT_ID" >/dev/null
   ok "$api"
 done
 
-step "サービスアカウントの準備（GA4 と Search Console 用）"
+step "サービスアカウントの準備（GA4用）"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 if gcloud iam service-accounts describe "$SA_EMAIL" --project="$PROJECT_ID" >/dev/null 2>&1; then
   ok "既存のサービスアカウントを使用: $SA_EMAIL"
@@ -102,18 +102,11 @@ cat <<TXT
     → 上のアドレス／「メールで通知する」の【チェックを外す】／役割は「閲覧者」
     ※対象プロパティは 506324594
 
-[2] Search Console に権限を渡す  https://search.google.com/search-console
-    設定 → ユーザーと権限 → ユーザーを追加 → 上のアドレス／権限は「制限付き」
-    ※GA4に追加しただけでは通りません
-    ※プロパティの種類を確認:
-        ドメイン          → GSC_SITE_URL=sc-domain:stock-sun.com
-        URLプレフィックス → GSC_SITE_URL=https://stock-sun.com/
-
-[3] OAuth同意画面を設定
+[2] OAuth同意画面を設定
     https://console.cloud.google.com/apis/credentials/consent?project=$PROJECT_ID
     ★「内部」を選べるなら必ず内部に。「外部・テスト中」だとトークンが7日で失効します
 
-[4] OAuthクライアントを作る（種類は【デスクトップアプリ】）
+[3] OAuthクライアントを作る（種類は【デスクトップアプリ】）
     https://console.cloud.google.com/apis/credentials?project=$PROJECT_ID
     その後:
         export YOUTUBE_CLIENT_ID='...'
