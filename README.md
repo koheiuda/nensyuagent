@@ -23,7 +23,8 @@ StockSun本体のSEOプロジェクト（`../stocksun`）とは**別プロジェ
 - ヒアリング項目：`docs/YouTube_キックオフ_ヒアリング項目.md`
 - 定例レポート雛形：`docs/YouTube定例レポート_テンプレート.md`
 - データ取得スクリプト：`tools/youtube_analytics_export.py`
-- 分析ダッシュボード：`youtube-dashboard/`（Vercel向け。ビルド不要）
+- 分析ダッシュボード：`youtube-dashboard/`（Vercel向け。ビルド不要・API直結）
+- OAuthトークン発行：`tools/get_youtube_refresh_token.py`（一度だけ実行）
 
 ## チャットワーク
 | ルーム | URL | 用途 |

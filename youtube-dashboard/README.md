@@ -1,75 +1,97 @@
-# YouTube 分析ダッシュボード
+# 年収エージェント アナリティクス
 
-年収エージェントチャンネル（`UCwrivK-bKlDu6ZJzC01GPBw`）の分析ダッシュボード。
+YouTube と GA4 を **API で直接取得**するダッシュボード。CSVの手動アップロードは廃止済み。
 
-**ビルド不要・依存パッケージゼロ**（静的HTML + Vercel Serverless Function 1本）。
-`npm install` も `npm run build` も要りません。
+**ビルド不要・依存パッケージゼロ**（静的HTML + Vercel Serverless Function）。
+`npm install` も `npm run build` も要りません。JWT署名も Node 標準の `crypto` で自前実装しています。
 
-## 構成
-| ファイル | 役割 |
-|---|---|
-| `index.html` | ダッシュボード本体（バニラJS、チャートは自前のHTML/CSS） |
-| `api/youtube.js` | YouTube Data API v3 のプロキシ。APIキーはサーバー側のみで保持 |
+## API連携の構成
 
-## 2つのモード
+| エンドポイント | API | 認証方式 | 取れるもの |
+|---|---|---|---|
+| `/api/youtube` | YouTube Data API v3 | APIキー | 登録者数・総再生回数・動画一覧・累計再生数 |
+| `/api/youtube-analytics` | YouTube Analytics API v2 | **OAuth リフレッシュトークン** | インプレッション・CTR・視聴維持率・平均視聴時間・登録者増減・トラフィックソース |
+| `/api/ga4` | GA4 Data API v1beta | **サービスアカウント** | `/nensyuagent/` のセッション・CV・参照元・ページ別・YouTube経由の送客 |
 
-### 1. ライブ（公開指標）— `YOUTUBE_API_KEY` が必要
-YouTube Data API v3 から取得できる**公開指標**を表示します。
+認証方式が3つに分かれるのは仕様上の制約です。
+**YouTube Analytics はサービスアカウントを受け付けません**（チャンネル所有者本人の同意が必要）。
+一方 GA4 はサービスアカウントで動くので、そちらは無人で回せます。
 
-- 登録者数 / チャンネル総再生回数 / 公開動画数 / 1本あたり平均再生回数
-- 月別 再生回数（公開月ベースの棒グラフ）
-- 再生回数 トップ10
-- エンゲージメント率 トップ10（(高評価＋コメント)÷再生回数、再生100回未満は除外）
-- 全動画テーブル（列見出しクリックで並べ替え）
-
-### 2. CSV分析（YouTube Studio エクスポート）— 設定不要
-インプレッション・CTR・視聴維持率など、**Data API では取れない非公開指標**を扱えます。
-
-YouTube Studio → アナリティクス → 詳細モード → エクスポート → カンマ区切り（.csv）
-
-- ファイルはブラウザ内だけで処理され、サーバーへ送信されません
-- 「合計」行は自動で除外（グラフが合計値に支配されるのを防ぐため）
-- `3:12` のような時間表記は秒に換算して集計し、表示は時間表記に戻します
+すべての認証情報は**サーバー側のみ**で使い、ブラウザには一切返しません。
+エラー時もリクエストURLは返さない実装です（URLに鍵が乗るため）。
 
 ## 環境変数（Vercel のプロジェクト設定で登録）
-| 変数 | 必須 | 内容 |
+
+| 変数 | 用途 | 必須 |
 |---|---|---|
-| `YOUTUBE_API_KEY` | ○ | Google Cloud で発行した YouTube Data API v3 のAPIキー |
-| `YOUTUBE_CHANNEL_ID` | — | 対象チャンネル。既定は `UCwrivK-bKlDu6ZJzC01GPBw` |
+| `YOUTUBE_API_KEY` | YouTube Data API v3 | 公開指標に必要 |
+| `YOUTUBE_CHANNEL_ID` | 対象チャンネル。既定 `UCwrivK-bKlDu6ZJzC01GPBw` | 任意 |
+| `YOUTUBE_CLIENT_ID` | OAuthクライアントID | 非公開指標に必要 |
+| `YOUTUBE_CLIENT_SECRET` | OAuthクライアントシークレット | 非公開指標に必要 |
+| `YOUTUBE_REFRESH_TOKEN` | リフレッシュトークン（下記手順で発行） | 非公開指標に必要 |
+| `GA4_PROPERTY_ID` | `506324594` | GA4に必要 |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | サービスアカウントJSON全文（base64も可） | GA4に必要 |
 
-APIキーは **サーバー側でのみ** 使用し、ブラウザには一切返しません。
-**リポジトリには絶対にコミットしないでください**（本リポジトリは Public です）。
+**リポジトリには絶対に置かないでください**（本リポジトリは Public）。
+一部だけ設定した状態でも動きます。未設定の機能は画面に設定手順が出ます。
 
-APIキーの発行手順：Google Cloud コンソール → APIとサービス → ライブラリ →
-「YouTube Data API v3」を有効化 → 認証情報 → APIキーを作成 →
-（推奨）キーの制限で「YouTube Data API v3」のみに限定。
+## セットアップ
+
+### 1. YouTube 公開指標（APIキー）
+1. Google Cloud → APIとサービス → ライブラリ → **YouTube Data API v3** を有効化
+2. 認証情報 → APIキーを作成（キーの制限で YouTube Data API v3 のみに限定推奨）
+3. `YOUTUBE_API_KEY` に設定
+
+### 2. YouTube 非公開指標（OAuth）
+1. Google Cloud → **YouTube Analytics API** を有効化
+2. 認証情報 → OAuthクライアントID → 種類「**デスクトップアプリ**」を作成
+3. ローカルで一度だけ実行する:
+   ```bash
+   export YOUTUBE_CLIENT_ID='...apps.googleusercontent.com'
+   export YOUTUBE_CLIENT_SECRET='GOCSPX-...'
+   python tools/get_youtube_refresh_token.py
+   ```
+   ブラウザが開くので、**チャンネルの権限を持つアカウント**で承認
+4. 表示された `YOUTUBE_REFRESH_TOKEN` を環境変数に設定
+
+### 3. GA4（サービスアカウント）
+1. Google Cloud → IAMと管理 → サービスアカウントを作成 → JSONキーを発行
+2. Google Cloud → **Google Analytics Data API** を有効化
+3. GA4 → 管理 → プロパティのアクセス管理 → サービスアカウントのメールアドレス
+   （`...@....iam.gserviceaccount.com`）を **「閲覧者」** で追加
+4. `GA4_PROPERTY_ID=506324594` と `GOOGLE_SERVICE_ACCOUNT_JSON`（JSON全文）を設定
+
+> JSON全文を1行に貼るのが面倒な場合は base64 でも受け付けます:
+> `base64 -w0 service-account.json`
 
 ## デプロイ
 
-### 方法A：GitHub連携（推奨・push で自動デプロイ）
+### 方法A：GitHub連携（推奨）
 1. Vercel → Add New → Project → `koheiuda/nensyuagent` をインポート
-2. **Root Directory を `youtube-dashboard` に設定**
+2. **Root Directory を `youtube-dashboard`** に設定
 3. Framework Preset は `Other`。Build Command / Output Directory は**空のまま**
-4. Environment Variables に `YOUTUBE_API_KEY` を追加
-5. Deploy
+4. 環境変数を登録して Deploy
 
-> 本番ブランチは既定で `main` です。フィーチャーブランチの内容を本番に出す場合は
-> PR経由で `main` にマージするか、Vercel の Production Branch 設定を変更してください。
+> 本番ブランチは既定で `main` です。フィーチャーブランチの内容を出す場合は
+> PR経由で `main` にマージするか、Vercel の Production Branch を変更してください。
 
 ### 方法B：Vercel CLI
 ```bash
 cd youtube-dashboard
-vercel --prod
+npx vercel --prod
 ```
 
-## ローカルで動かす
-```bash
-cd youtube-dashboard
-vercel dev          # /api/youtube を動かすには vercel dev が必要
-```
-CSV分析タブだけなら、`index.html` をブラウザで直接開くだけでも動きます。
+## 画面
+
+| タブ | 内容 |
+|---|---|
+| YouTube | 登録者数・視聴回数・登録者純増・インプレッションCTR・平均視聴維持率・総再生時間のタイル／視聴回数の推移／トラフィックソース／視聴回数トップ10／動画別テーブル（公開データと非公開指標を動画IDで突き合わせ） |
+| 送客（GA4） | セッション・ユーザー・PV・CV・**YouTube経由セッション/CV**のタイル／セッション推移／YouTube経由セッション推移／参照元別／ページ別 |
+
+期間は 28 / 90 / 180 / 365 日から選択。45日を超える期間は棒グラフを週次合計に丸めます。
 
 ## 評価の前提
 再生数の増減だけで判断しないこと。必ず `/nensyuagent/` への送客（GA4のセッション・CV）と
-接続して評価します。GA4・GSC は StockSun 本体と同一プロパティのため、
-**必ずパスで絞り込む**こと。詳細は `../docs/YouTube_運用設計.md` を参照。
+接続して評価します。GA4 は StockSun 本体と同一プロパティのため、
+API側で `pagePath` が `/nensyuagent/` で始まるものだけに絞り込んでいます。
+詳細は `../docs/YouTube_運用設計.md` を参照。

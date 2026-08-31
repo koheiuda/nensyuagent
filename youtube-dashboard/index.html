@@ -4,110 +4,96 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>YouTube 分析ダッシュボード</title>
+<title>年収エージェント アナリティクス</title>
 <style>
   :root {
     color-scheme: light;
-    --surface-1: #fcfcfb;
-    --plane: #f9f9f7;
-    --text-primary: #0b0b0b;
-    --text-secondary: #52514e;
-    --muted: #898781;
-    --grid: #e1e0d9;
-    --axis: #c3c2b7;
-    --border: rgba(11,11,11,0.10);
-    --series-1: #2a78d6;
-    --series-2: #eb6834;
-    --series-3: #1baf7a;
+    --surface-1: #fcfcfb; --plane: #f9f9f7;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
     --track: rgba(11,11,11,0.05);
-    --good: #006300;
-    --critical: #d03b3b;
-    --warning: #fab219;
+    --warn-ink: #7a5200; --warn-bg: rgba(250,178,25,0.13); --warn-line: rgba(250,178,25,0.45);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
-      --surface-1: #1a1a19;
-      --plane: #0d0d0d;
-      --text-primary: #ffffff;
-      --text-secondary: #c3c2b7;
-      --muted: #898781;
-      --grid: #2c2c2a;
-      --axis: #383835;
-      --border: rgba(255,255,255,0.10);
-      --series-1: #3987e5;
-      --series-2: #d95926;
-      --series-3: #199e70;
+      --surface-1: #1a1a19; --plane: #0d0d0d;
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
       --track: rgba(255,255,255,0.07);
-      --good: #0ca30c;
-      --critical: #d03b3b;
+      --warn-ink: #fab219; --warn-bg: rgba(250,178,25,0.10); --warn-line: rgba(250,178,25,0.32);
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
     --surface-1: #1a1a19; --plane: #0d0d0d; --text-primary: #fff; --text-secondary: #c3c2b7;
     --muted: #898781; --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
-    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
-    --track: rgba(255,255,255,0.07); --good: #0ca30c;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --track: rgba(255,255,255,0.07);
+    --warn-ink: #fab219; --warn-bg: rgba(250,178,25,0.10); --warn-line: rgba(250,178,25,0.32);
   }
 
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--plane);
-    color: var(--text-primary);
-    font: 14px/1.6 system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
-  }
+  body { margin: 0; background: var(--plane); color: var(--text-primary);
+         font: 14px/1.6 system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; }
   .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 72px; }
 
-  header.top { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
-  h1 { font-size: 20px; margin: 0; letter-spacing: .01em; }
-  .sub { color: var(--text-secondary); font-size: 13px; margin: 2px 0 20px; }
+  header.top { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; }
+  h1 { font-size: 20px; margin: 0; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin: 3px 0 18px; }
   .sub code { font-size: 12px; background: var(--track); padding: 1px 5px; border-radius: 4px; }
 
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
   .tab { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
          padding: 9px 14px; font: inherit; font-weight: 600; color: var(--text-secondary); cursor: pointer; border-radius: 6px 6px 0 0; }
   .tab:hover { background: var(--track); }
   .tab[aria-selected="true"] { color: var(--text-primary); border-bottom-color: var(--series-1); }
+  .tab:focus-visible, .btn:focus-visible, select:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
 
   .btn { appearance: none; font: inherit; font-weight: 600; padding: 7px 13px; border-radius: 8px;
          border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); cursor: pointer; }
   .btn:hover { background: var(--track); }
-  .btn[disabled] { opacity: .5; cursor: default; }
+  select { font: inherit; font-size: 13px; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--border);
+           background: var(--surface-1); color: var(--text-primary); }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .controls label { color: var(--text-secondary); font-size: 12px; }
 
   .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
-  .card > h2 { font-size: 14px; margin: 0 0 2px; letter-spacing: .01em; }
+  .card > h2 { font-size: 14px; margin: 0 0 2px; }
   .card > .note { color: var(--muted); font-size: 12px; margin: 0 0 16px; }
+  .note { color: var(--muted); font-size: 12px; margin: 0; }
+  code { background: var(--track); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
 
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 15px 17px; }
   .tile .k { color: var(--text-secondary); font-size: 12px; }
-  .tile .v { font-size: 30px; font-weight: 650; line-height: 1.15; margin-top: 6px; letter-spacing: -.01em; }
-  .tile .m { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  .tile .v { font-size: 28px; font-weight: 650; line-height: 1.18; margin-top: 5px; letter-spacing: -.012em; }
+  .tile .m { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
 
-  /* 横棒 */
-  .hrow { display: grid; grid-template-columns: minmax(0,1fr) 55% auto; gap: 12px; align-items: center; padding: 4px 0; }
+  .hrow { display: grid; grid-template-columns: minmax(0,1fr) 52% auto; gap: 12px; align-items: center; padding: 4px 0; }
   .hlabel { color: var(--text-secondary); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .htrack { background: var(--track); border-radius: 0 4px 4px 0; height: 16px; }
   .hbar { height: 100%; border-radius: 0 4px 4px 0; background: var(--series-1); min-width: 2px; }
   .hbar.alt { background: var(--series-3); }
-  .hval { font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--text-primary); text-align: right; min-width: 68px; }
+  .hbar.alt2 { background: var(--series-2); }
+  .hval { font-size: 12.5px; font-variant-numeric: tabular-nums; text-align: right; min-width: 72px; }
 
-  /* 縦棒（月次） */
-  .plot { position: relative; height: 210px; margin: 8px 0 0 44px; }
+  .plot { position: relative; height: 200px; margin: 8px 0 0 46px; }
   .gridline { position: absolute; left: 0; right: 0; border-top: 1px solid var(--grid); }
   .gridline:first-child { border-top-color: var(--axis); }
   .gridline span { position: absolute; right: 100%; padding-right: 8px; transform: translateY(-50%);
                    color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .cols { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px; }
-  .colwrap { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; min-width: 0; cursor: default; }
-  .colbar { width: 100%; background: var(--series-1); border-radius: 4px 4px 0 0; min-height: 2px; transition: opacity .1s; }
+  .colwrap { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; min-width: 0; }
+  .colbar { width: 100%; background: var(--series-1); border-radius: 4px 4px 0 0; min-height: 2px; }
+  .colbar.alt { background: var(--series-3); }
   .colwrap:hover .colbar { opacity: .78; }
-  .xaxis { display: flex; gap: 2px; margin: 6px 0 0 44px; }
-  .xaxis span { flex: 1 1 0; min-width: 0; text-align: center; color: var(--muted); font-size: 10.5px;
-                overflow: hidden; white-space: nowrap; }
+  .xaxis { display: flex; gap: 2px; margin: 6px 0 0 46px; }
+  /* 目盛りは1本おきにしか描かないので、はみ出しを許して潰さない */
+  .xaxis span { flex: 1 1 0; min-width: 0; text-align: center; color: var(--muted); font-size: 10.5px; overflow: visible; white-space: nowrap; }
 
+  .scroll { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
   th { color: var(--text-secondary); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; user-select: none; }
@@ -116,74 +102,53 @@
   tbody tr:hover { background: var(--track); }
   td a { color: var(--series-1); text-decoration: none; }
   td a:hover { text-decoration: underline; }
-  .scroll { overflow-x: auto; }
 
-  .notice { border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; border: 1px solid var(--border); background: var(--surface-1); }
-  .notice h2 { font-size: 14px; margin: 0 0 8px; }
-  .notice ol { margin: 8px 0 0; padding-left: 20px; }
-  .notice li { margin-bottom: 6px; color: var(--text-secondary); }
-  .notice code { background: var(--track); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
-  .bad { color: var(--critical); font-weight: 600; }
-
-  .drop { border: 1.5px dashed var(--axis); border-radius: 12px; padding: 32px 20px; text-align: center; color: var(--text-secondary); }
-  .drop.over { border-color: var(--series-1); background: var(--track); }
-  .drop input { display: none; }
-
-  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
-  label.f { color: var(--text-secondary); font-size: 12px; }
-  select { font: inherit; font-size: 13px; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--border);
-           background: var(--surface-1); color: var(--text-primary); max-width: 260px; }
+  .setup { border: 1px solid var(--warn-line); background: var(--warn-bg); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+  .setup h2 { font-size: 13px; margin: 0 0 8px; color: var(--warn-ink); text-transform: uppercase; letter-spacing: .02em; }
+  .setup p { margin: 0 0 8px; font-size: 13px; color: var(--text-secondary); }
+  .setup ol { margin: 8px 0 0; padding-left: 20px; }
+  .setup li { margin-bottom: 5px; color: var(--text-secondary); font-size: 13px; }
 
   #tip { position: fixed; z-index: 20; pointer-events: none; opacity: 0; transition: opacity .08s;
          background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
-         border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 24px rgba(0,0,0,.14); max-width: 280px; }
-  #tip b { display: block; font-size: 12.5px; margin-bottom: 3px; }
+         border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 24px rgba(0,0,0,.14); max-width: 290px; }
+  #tip b { display: block; margin-bottom: 3px; }
   #tip .r { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   .hide { display: none !important; }
-  footer { color: var(--muted); font-size: 12px; margin-top: 28px; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 26px; border-top: 1px solid var(--border); padding-top: 14px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <div>
-      <h1>YouTube 分析ダッシュボード</h1>
+      <h1>年収エージェント アナリティクス</h1>
       <p class="sub" id="sub">読み込み中…</p>
     </div>
-    <button class="btn" id="reload">再読み込み</button>
+    <div class="controls" style="margin:0">
+      <label for="range">期間</label>
+      <select id="range">
+        <option value="28">直近28日</option>
+        <option value="90" selected>直近90日</option>
+        <option value="180">直近180日</option>
+        <option value="365">直近365日</option>
+      </select>
+      <button class="btn" id="reload" type="button">再読み込み</button>
+    </div>
   </header>
 
   <div class="tabs" role="tablist">
-    <button class="tab" role="tab" aria-selected="true" data-tab="live">ライブ（公開指標）</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="csv">CSV分析（Studioエクスポート）</button>
+    <button class="tab" role="tab" aria-selected="true" data-tab="yt">YouTube</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="ga">送客（GA4）</button>
   </div>
 
-  <section id="panel-live">
-    <div id="live-body"></div>
-  </section>
-
-  <section id="panel-csv" class="hide">
-    <div class="card">
-      <h2>YouTube Studio のCSVを読み込む</h2>
-      <p class="note">
-        インプレッション・CTR・視聴維持率など、YouTube Data API では取得できない非公開指標を扱えます。
-        ファイルはブラウザ内だけで処理され、サーバーへは送信されません。
-      </p>
-      <div class="drop" id="drop">
-        <p style="margin:0 0 10px">CSVをここにドロップ、またはファイルを選択</p>
-        <button class="btn" id="pick">ファイルを選択</button>
-        <input type="file" id="file" accept=".csv,text/csv">
-        <p class="note" style="margin:14px 0 0">
-          YouTube Studio → アナリティクス → 詳細モード → エクスポート → カンマ区切り（.csv）
-        </p>
-      </div>
-    </div>
-    <div id="csv-body"></div>
-  </section>
+  <section id="panel-yt"><div id="yt-body"></div></section>
+  <section id="panel-ga" class="hide"><div id="ga-body"></div></section>
 
   <footer>
-    データ出典：YouTube Data API v3（公開指標）／ YouTube Studio エクスポート（CSVタブ）。
-    再生数の評価は、必ず <code>/nensyuagent/</code> への送客（GA4）と接続して判断してください。
+    出典：YouTube Data API v3（公開指標）／ YouTube Analytics API v2（非公開指標）／ GA4 Data API（<code>/nensyuagent/</code> 絞り込み）。
+    GA4・GSC は StockSun 本体と同一プロパティのため、必ずパスで絞り込んでいます。
   </footer>
 </div>
 <div id="tip" role="tooltip"></div>
@@ -194,13 +159,10 @@
 
   var tip = document.getElementById('tip');
   function showTip(html, ev) {
-    tip.innerHTML = html;
-    tip.style.opacity = '1';
+    tip.innerHTML = html; tip.style.opacity = '1';
     var pad = 14, r = tip.getBoundingClientRect();
-    var x = Math.min(ev.clientX + pad, window.innerWidth - r.width - 8);
-    var y = Math.max(8, ev.clientY - r.height - pad);
-    tip.style.left = x + 'px';
-    tip.style.top = y + 'px';
+    tip.style.left = Math.min(ev.clientX + pad, window.innerWidth - r.width - 8) + 'px';
+    tip.style.top = Math.max(8, ev.clientY - r.height - pad) + 'px';
   }
   function hideTip() { tip.style.opacity = '0'; }
 
@@ -209,84 +171,56 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-  function nf(n) { return Number(n || 0).toLocaleString('ja-JP'); }
+  function nf(n) { return Number(n || 0).toLocaleString('ja-JP', { maximumFractionDigits: 2 }); }
   function compact(n) {
     n = Number(n || 0);
     if (n >= 1e8) return (n / 1e8).toFixed(1) + '億';
     if (n >= 1e4) return (n / 1e4).toFixed(n >= 1e5 ? 0 : 1) + '万';
     return nf(n);
   }
-  function pct(x, d) { return (Number(x || 0) * 100).toFixed(d == null ? 1 : d) + '%'; }
-  function ymd(iso) {
-    var d = new Date(iso);
-    if (isNaN(d)) return '—';
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  }
+  function pct(x, d) { return (Number(x || 0)).toFixed(d == null ? 1 : d) + '%'; }
   function hms(sec) {
     sec = Math.round(Number(sec) || 0);
     var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
     return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(s).padStart(2, '0');
   }
+  // GA4 は "20260829"、YouTube Analytics は "2026-08-29" を返す
+  function normDate(v) {
+    v = String(v);
+    return /^\d{8}$/.test(v) ? v.slice(0, 4) + '-' + v.slice(4, 6) + '-' + v.slice(6) : v;
+  }
   function el(html) { var d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; }
+  function sum(arr, key) { return arr.reduce(function (a, r) { return a + (Number(r[key]) || 0); }, 0); }
 
-  // ---------- 横棒チャート（単一系列・直接ラベルつき） ----------
+  function tiles(list) {
+    var host = el('<div class="tiles"></div>');
+    list.forEach(function (t) {
+      host.appendChild(el('<div class="tile"><div class="k">' + esc(t[0]) + '</div><div class="v">' +
+        esc(t[1]) + '</div><div class="m">' + esc(t[2] || '') + '</div></div>'));
+    });
+    return host;
+  }
+
   function barChart(rows, opts) {
     opts = opts || {};
-    var max = 0, i;
-    for (i = 0; i < rows.length; i++) max = Math.max(max, Math.abs(rows[i].value));
+    var max = 0;
+    rows.forEach(function (r) { max = Math.max(max, Math.abs(r.value)); });
     if (!max) max = 1;
     var wrap = document.createElement('div');
     rows.forEach(function (r) {
       var w = (Math.abs(r.value) / max) * 100;
-      var row = el(
-        '<div class="hrow">' +
-          '<div class="hlabel" title="' + esc(r.label) + '">' + esc(r.label) + '</div>' +
-          '<div class="htrack"><div class="hbar' + (opts.alt ? ' alt' : '') + '" style="width:' + w.toFixed(2) + '%"></div></div>' +
-          '<div class="hval">' + esc(opts.format ? opts.format(r.value) : nf(r.value)) + '</div>' +
-        '</div>'
-      );
+      var node = el('<div class="hrow"><div class="hlabel" title="' + esc(r.label) + '">' + esc(r.label) + '</div>' +
+        '<div class="htrack"><div class="hbar ' + (opts.variant || '') + '" style="width:' + w.toFixed(2) + '%"></div></div>' +
+        '<div class="hval">' + esc(opts.format ? opts.format(r.value) : nf(r.value)) + '</div></div>');
       if (r.tip) {
-        row.addEventListener('mousemove', function (ev) { showTip(r.tip, ev); });
-        row.addEventListener('mouseleave', hideTip);
+        node.addEventListener('mousemove', function (ev) { showTip(r.tip, ev); });
+        node.addEventListener('mouseleave', hideTip);
       }
-      wrap.appendChild(row);
+      wrap.appendChild(node);
     });
     return wrap;
   }
 
-  // ---------- 縦棒チャート（時系列） ----------
-  function columnChart(points, opts) {
-    opts = opts || {};
-    var max = 0;
-    points.forEach(function (p) { max = Math.max(max, p.value); });
-    var top = niceCeil(max || 1);
-    var host = document.createElement('div');
-
-    var plot = el('<div class="plot"></div>');
-    for (var t = 0; t <= 4; t++) {
-      var frac = t / 4;
-      var g = el('<div class="gridline" style="bottom:' + (frac * 100) + '%"><span>' + esc(compact(top * frac)) + '</span></div>');
-      plot.appendChild(g);
-    }
-    var cols = el('<div class="cols"></div>');
-    points.forEach(function (p) {
-      var h = (p.value / top) * 100;
-      var c = el('<div class="colwrap"><div class="colbar" style="height:' + Math.max(h, 0.6).toFixed(2) + '%"></div></div>');
-      c.addEventListener('mousemove', function (ev) { showTip(p.tip || ('<b>' + esc(p.label) + '</b><span class="r">' + esc(nf(p.value)) + '</span>'), ev); });
-      c.addEventListener('mouseleave', hideTip);
-      cols.appendChild(c);
-    });
-    plot.appendChild(cols);
-    host.appendChild(plot);
-
-    var ax = el('<div class="xaxis"></div>');
-    var step = Math.ceil(points.length / 12);
-    points.forEach(function (p, i) {
-      ax.appendChild(el('<span>' + esc(i % step === 0 ? p.short : '') + '</span>'));
-    });
-    host.appendChild(ax);
-    return host;
-  }
   function niceCeil(v) {
     var mag = Math.pow(10, Math.floor(Math.log10(v)));
     var n = v / mag;
@@ -294,32 +228,61 @@
     return s * mag;
   }
 
-  // ---------- ソート可能テーブル ----------
+  function columnChart(points, opts) {
+    opts = opts || {};
+    var max = 0;
+    points.forEach(function (p) { max = Math.max(max, p.value); });
+    var top = niceCeil(max || 1);
+    var host = document.createElement('div');
+    var plot = el('<div class="plot"></div>');
+    for (var t = 0; t <= 4; t++) {
+      var frac = t / 4;
+      plot.appendChild(el('<div class="gridline" style="bottom:' + (frac * 100) + '%"><span>' +
+        esc(opts.axisFormat ? opts.axisFormat(top * frac) : compact(top * frac)) + '</span></div>'));
+    }
+    var cols = el('<div class="cols"></div>');
+    points.forEach(function (p) {
+      var h = (p.value / top) * 100;
+      var c = el('<div class="colwrap"><div class="colbar ' + (opts.variant || '') + '" style="height:' +
+        Math.max(h, 0.6).toFixed(2) + '%"></div></div>');
+      c.addEventListener('mousemove', function (ev) {
+        showTip(p.tip || ('<b>' + esc(p.label) + '</b><span class="r">' + esc(nf(p.value)) + '</span>'), ev);
+      });
+      c.addEventListener('mouseleave', hideTip);
+      cols.appendChild(c);
+    });
+    plot.appendChild(cols);
+    host.appendChild(plot);
+    var ax = el('<div class="xaxis"></div>');
+    var step = Math.max(1, Math.ceil(points.length / 12));
+    points.forEach(function (p, i) { ax.appendChild(el('<span>' + esc(i % step === 0 ? p.short : '') + '</span>')); });
+    host.appendChild(ax);
+    return host;
+  }
+
   function sortableTable(cols, rows) {
     var state = { key: null, dir: -1 };
     var host = el('<div class="scroll"></div>');
     var table = document.createElement('table');
     host.appendChild(table);
-
     function draw() {
       var data = rows.slice();
       if (state.key) {
         var c = cols.filter(function (x) { return x.key === state.key; })[0];
         data.sort(function (a, b) {
           var av = a[state.key], bv = b[state.key];
-          if (c && c.num) return (Number(av) - Number(bv)) * state.dir;
+          if (c && c.num) return ((Number(av) || 0) - (Number(bv) || 0)) * state.dir;
           return String(av).localeCompare(String(bv), 'ja') * state.dir;
         });
       }
-      var h = '<thead><tr>' + cols.map(function (c) {
-        var arrow = state.key === c.key ? (state.dir < 0 ? ' ↓' : ' ↑') : '';
-        return '<th class="' + (c.num ? 'num' : '') + '" data-k="' + esc(c.key) + '">' + esc(c.head) + arrow + '</th>';
+      table.innerHTML = '<thead><tr>' + cols.map(function (c) {
+        return '<th class="' + (c.num ? 'num' : '') + '" data-k="' + esc(c.key) + '">' + esc(c.head) +
+          (state.key === c.key ? (state.dir < 0 ? ' ↓' : ' ↑') : '') + '</th>';
       }).join('') + '</tr></thead><tbody>' + data.map(function (r) {
         return '<tr>' + cols.map(function (c) {
           return '<td class="' + (c.num ? 'num' : '') + '">' + (c.render ? c.render(r) : esc(r[c.key])) + '</td>';
         }).join('') + '</tr>';
       }).join('') + '</tbody>';
-      table.innerHTML = h;
       Array.prototype.forEach.call(table.querySelectorAll('th'), function (th) {
         th.addEventListener('click', function () {
           var k = th.getAttribute('data-k');
@@ -338,300 +301,271 @@
     return c;
   }
 
-  // =================== ライブタブ ===================
-  var liveBody = document.getElementById('live-body');
-  var sub = document.getElementById('sub');
-
-  function setupNotice(msg) {
-    return el(
-      '<div class="notice">' +
-        '<h2><span class="bad">未設定</span> — YouTube API キーを登録すると公開指標が表示されます</h2>' +
-        '<p class="note" style="margin:0">' + esc(msg || '') + '</p>' +
-        '<ol>' +
-          '<li>Google Cloud コンソールで <code>YouTube Data API v3</code> を有効化し、APIキーを作成</li>' +
-          '<li>Vercel → プロジェクト → Settings → Environment Variables で <code>YOUTUBE_API_KEY</code> を追加</li>' +
-          '<li>対象チャンネルを変えたい場合は <code>YOUTUBE_CHANNEL_ID</code> も追加（既定：<code>UCwrivK-bKlDu6ZJzC01GPBw</code>）</li>' +
-          '<li>Redeploy して、このページを再読み込み</li>' +
-        '</ol>' +
-        '<p class="note" style="margin:12px 0 0">キーはサーバー側だけで使われ、ブラウザには送られません。' +
-        '設定が済むまでは「CSV分析」タブが利用できます。</p>' +
-      '</div>'
-    );
+  function setupCard(title, message, steps) {
+    return el('<div class="setup"><h2>' + esc(title) + '</h2><p>' + esc(message) + '</p><ol>' +
+      steps.map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol></div>');
   }
 
-  function renderLive(d) {
-    var ch = d.channel, vs = d.videos || [];
-    sub.innerHTML = esc(ch.title) + ' ・ <code>' + esc(ch.id) + '</code> ・ 取得 ' + esc(ymd(d.fetchedAt));
-    liveBody.innerHTML = '';
-
-    var totalViews = 0;
-    vs.forEach(function (v) { totalViews += v.views; });
-    var avg = vs.length ? Math.round(totalViews / vs.length) : 0;
-
-    var tiles = el('<div class="tiles"></div>');
-    [
-      { k: '登録者数', v: ch.subscriberCount == null ? '非公開' : compact(ch.subscriberCount), m: ch.subscriberCount == null ? 'チャンネル側で非表示' : nf(ch.subscriberCount) + ' 人' },
-      { k: 'チャンネル総再生回数', v: compact(ch.viewCount), m: nf(ch.viewCount) + ' 回' },
-      { k: '公開動画数', v: nf(ch.videoCount), m: '取得済み ' + nf(vs.length) + ' 本' },
-      { k: '1本あたり平均再生回数', v: compact(avg), m: '取得済み ' + nf(vs.length) + ' 本の平均' }
-    ].forEach(function (t) {
-      tiles.appendChild(el('<div class="tile"><div class="k">' + esc(t.k) + '</div><div class="v">' + esc(t.v) + '</div><div class="m">' + esc(t.m) + '</div></div>'));
+  // 日次のままだと90本以上は読めないので、45本を超えたら週次に丸める
+  function dailyPoints(rows, dateKey, valueKey, label) {
+    var pts = rows.map(function (r) {
+      return { date: normDate(r[dateKey]), value: Number(r[valueKey]) || 0 };
     });
-    liveBody.appendChild(tiles);
+    if (pts.length <= 45) {
+      return pts.map(function (p) {
+        return { label: p.date, short: p.date.slice(5), value: p.value,
+          tip: '<b>' + esc(p.date) + '</b><span class="r">' + esc(label) + ' ' + esc(nf(p.value)) + '</span>' };
+      });
+    }
+    var weeks = [];
+    for (var i = 0; i < pts.length; i += 7) {
+      var chunk = pts.slice(i, i + 7);
+      var total = chunk.reduce(function (a, p) { return a + p.value; }, 0);
+      var from = chunk[0].date, to = chunk[chunk.length - 1].date;
+      weeks.push({ label: from, short: from.slice(5), value: total,
+        tip: '<b>' + esc(from) + ' 〜 ' + esc(to) + '</b><span class="r">' + esc(label) + ' ' + esc(nf(total)) +
+             '<br>1日平均 ' + esc(nf(Math.round(total / chunk.length))) + '</span>' });
+    }
+    return weeks;
+  }
 
-    if (!vs.length) {
-      liveBody.appendChild(el('<div class="card"><h2>動画がありません</h2><p class="note">このチャンネルで公開動画を取得できませんでした。</p></div>'));
+  function getJSON(path) {
+    return fetch(path).then(function (r) {
+      return r.json().then(function (b) { return { ok: r.ok, body: b }; });
+    });
+  }
+
+  var days = 90;
+
+  // =================== YouTube ===================
+  function renderYouTube(pub, ana) {
+    var host = document.getElementById('yt-body');
+    host.innerHTML = '';
+
+    if (!pub.ok) {
+      host.appendChild(setupCard('YouTube Data API 未接続', pub.body.message || '取得できませんでした', [
+        'Google Cloud で <code>YouTube Data API v3</code> を有効化し、APIキーを作成',
+        'Vercel の環境変数に <code>YOUTUBE_API_KEY</code> を追加',
+        'Redeploy して再読み込み'
+      ]));
       return;
     }
 
-    // 月別 再生回数合計
-    var byMonth = {};
-    vs.forEach(function (v) {
-      var k = String(v.publishedAt).slice(0, 7);
-      if (!byMonth[k]) byMonth[k] = { views: 0, count: 0 };
-      byMonth[k].views += v.views;
-      byMonth[k].count += 1;
+    var ch = pub.body.channel, vids = pub.body.videos || [];
+    document.getElementById('sub').innerHTML =
+      esc(ch.title) + ' ・ <code>' + esc(ch.id) + '</code> ・ 取得 ' + esc(normDate(pub.body.fetchedAt.slice(0, 10)));
+
+    var A = (ana.ok && ana.body.reports) ? ana.body.reports : null;
+    var daily = (A && A.daily) || [];
+    var imps = (A && A.dailyImpressions) || [];
+
+    var periodViews = sum(daily, 'views');
+    var watchMin = sum(daily, 'estimatedMinutesWatched');
+    var subsNet = sum(daily, 'subscribersGained') - sum(daily, 'subscribersLost');
+    var totalImp = sum(imps, 'impressions');
+    var impViews = sum(imps, 'views');
+    var avgRetention = daily.length
+      ? daily.reduce(function (a, r) { return a + (Number(r.averageViewPercentage) || 0) * (Number(r.views) || 0); }, 0) /
+        (periodViews || 1)
+      : null;
+
+    host.appendChild(tiles([
+      ['登録者数', ch.subscriberCount == null ? '非公開' : compact(ch.subscriberCount),
+        ch.subscriberCount == null ? 'チャンネル側で非表示' : nf(ch.subscriberCount) + ' 人'],
+      ['チャンネル総再生回数', compact(ch.viewCount), nf(ch.viewCount) + ' 回（全期間）'],
+      A ? ['期間内 視聴回数', compact(periodViews), '直近' + days + '日'] : ['公開動画数', nf(ch.videoCount), '取得済み ' + nf(vids.length) + ' 本'],
+      A ? ['期間内 登録者純増', (subsNet >= 0 ? '+' : '') + nf(subsNet), '直近' + days + '日'] : ['取得済み動画', nf(vids.length) + ' 本', '最大200本'],
+      A && totalImp ? ['インプレッションCTR', pct(impViews / totalImp * 100, 2), nf(totalImp) + ' インプレッション'] : null,
+      A && avgRetention ? ['平均視聴維持率', pct(avgRetention, 1), '視聴回数で加重平均'] : null,
+      A ? ['総再生時間', compact(Math.round(watchMin)) + ' 分', nf(Math.round(watchMin / 60)) + ' 時間'] : null
+    ].filter(Boolean)));
+
+    if (!A) {
+      host.appendChild(setupCard('YouTube Analytics（非公開指標）未接続',
+        (ana.body && ana.body.message) || 'インプレッション・CTR・視聴維持率・登録者増減は OAuth 接続が必要です。', [
+          'Google Cloud で <code>YouTube Analytics API</code> を有効化し、OAuthクライアント（デスクトップアプリ）を作成',
+          '<code>python tools/get_youtube_refresh_token.py</code> を一度実行して承認',
+          'Vercel の環境変数に <code>YOUTUBE_CLIENT_ID</code> / <code>YOUTUBE_CLIENT_SECRET</code> / <code>YOUTUBE_REFRESH_TOKEN</code> を追加',
+          'Redeploy して再読み込み'
+        ]));
+    }
+
+    if (daily.length) {
+      host.appendChild(card('視聴回数の推移', 'YouTube Analytics の実視聴データ。当日は未確定のため前日まで。45日を超える期間は週次合計で表示します。',
+        columnChart(dailyPoints(daily, 'day', 'views', '視聴回数'))));
+    }
+
+    if (A && A.trafficSource && A.trafficSource.length) {
+      var LABELS = {
+        ADVERTISING: '広告', ANNOTATION: 'アノテーション', CAMPAIGN_CARD: 'カード', END_SCREEN: '終了画面',
+        EXT_URL: '外部サイト', NO_LINK_EMBEDDED: '埋め込み', NO_LINK_OTHER: 'その他', NOTIFICATION: '通知',
+        PLAYLIST: '再生リスト', PROMOTED: 'プロモーション', RELATED_VIDEO: '関連動画', SHORTS: 'ショートフィード',
+        SUBSCRIBER: 'ホーム／登録チャンネル', YT_CHANNEL: 'チャンネルページ', YT_OTHER: 'その他YouTube',
+        YT_PLAYLIST_PAGE: '再生リストページ', YT_SEARCH: 'YouTube検索', HASHTAGS: 'ハッシュタグ'
+      };
+      var tsTotal = sum(A.trafficSource, 'views') || 1;
+      host.appendChild(card('トラフィックソース', '検索需要型かブラウジング型かの判定に使います。',
+        barChart(A.trafficSource.map(function (r) {
+          var name = LABELS[r.insightTrafficSourceType] || r.insightTrafficSourceType;
+          return { label: name, value: r.views,
+            tip: '<b>' + esc(name) + '</b><span class="r">視聴 ' + esc(nf(r.views)) + '<br>構成比 ' +
+                 esc(pct(r.views / tsTotal * 100, 1)) + '</span>' };
+        }), { variant: 'alt2', format: compact })));
+    }
+
+    // 公開データ（タイトル）と Analytics（非公開指標）を video ID で突き合わせる
+    var byId = {};
+    vids.forEach(function (v) { byId[v.id] = Object.assign({}, v); });
+    ((A && A.video) || []).forEach(function (r) {
+      var t = byId[r.video] || (byId[r.video] = { id: r.video, title: '(取得できない動画)', views: 0 });
+      t.aViews = r.views; t.retention = r.averageViewPercentage; t.watchMin = r.estimatedMinutesWatched;
+      t.avgDuration = r.averageViewDuration; t.subs = r.subscribersGained;
     });
-    var months = Object.keys(byMonth).sort();
-    if (months.length > 1) {
-      // 欠けている月も0で埋める
-      var filled = [], cur = months[0], last = months[months.length - 1], guard = 0;
-      while (cur <= last && guard++ < 240) {
-        filled.push(cur);
-        var y = +cur.slice(0, 4), m = +cur.slice(5, 7) + 1;
-        if (m > 12) { m = 1; y++; }
-        cur = y + '-' + String(m).padStart(2, '0');
-      }
-      var pts = filled.map(function (k) {
-        var b = byMonth[k] || { views: 0, count: 0 };
-        return {
-          label: k, short: k.slice(2).replace('-', '/'), value: b.views,
-          tip: '<b>' + esc(k) + '</b><span class="r">再生回数 ' + esc(nf(b.views)) + '<br>投稿 ' + esc(nf(b.count)) + ' 本</span>'
-        };
-      });
-      liveBody.appendChild(card('月別 再生回数（公開月ベース）',
-        '各動画の累計再生回数を公開月に寄せた合計。当月の視聴実績ではありません。', columnChart(pts)));
+    ((A && A.videoImpressions) || []).forEach(function (r) {
+      var t = byId[r.video]; if (!t) return;
+      t.impressions = r.impressions; t.ctr = r.impressionsClickThroughRate;
+    });
+    var merged = Object.keys(byId).map(function (k) { return byId[k]; });
+
+    var top = merged.slice().sort(function (a, b) { return (b.aViews || b.views) - (a.aViews || a.views); }).slice(0, 10);
+    if (top.length) {
+      host.appendChild(card(A ? '視聴回数 トップ10（期間内）' : '再生回数 トップ10（累計）',
+        '数値は各バーの右端に直接表示しています。',
+        barChart(top.map(function (v) {
+          var val = A ? (v.aViews || 0) : v.views;
+          return { label: v.title, value: val,
+            tip: '<b>' + esc(v.title) + '</b><span class="r">視聴 ' + esc(nf(val)) +
+                 (v.ctr != null ? '<br>CTR ' + esc(pct(v.ctr, 2)) : '') +
+                 (v.retention != null ? '<br>維持率 ' + esc(pct(v.retention, 1)) : '') + '</span>' };
+        }), { format: compact })));
     }
 
-    // 再生回数トップ10
-    var top = vs.slice().sort(function (a, b) { return b.views - a.views; }).slice(0, 10);
-    liveBody.appendChild(card('再生回数 トップ10', '累計再生回数。数値は各バーの右端に直接表示しています。',
-      barChart(top.map(function (v) {
-        return {
-          label: v.title, value: v.views,
-          tip: '<b>' + esc(v.title) + '</b><span class="r">再生 ' + esc(nf(v.views)) + '<br>高評価 ' + esc(nf(v.likes)) +
-               ' ／ コメント ' + esc(nf(v.comments)) + '<br>公開 ' + esc(ymd(v.publishedAt)) + '</span>'
-        };
-      }), { format: compact })));
-
-    // エンゲージメント率トップ10（再生100回以上に限定）
-    var eng = vs.filter(function (v) { return v.views >= 100; })
-                .sort(function (a, b) { return b.engagement - a.engagement; }).slice(0, 10);
-    if (eng.length) {
-      liveBody.appendChild(card('エンゲージメント率 トップ10',
-        '(高評価＋コメント) ÷ 再生回数。再生100回未満の動画は分母が小さく不安定なため除外。',
-        barChart(eng.map(function (v) {
-          return {
-            label: v.title, value: v.engagement,
-            tip: '<b>' + esc(v.title) + '</b><span class="r">エンゲージメント ' + esc(pct(v.engagement, 2)) +
-                 '<br>再生 ' + esc(nf(v.views)) + '<br>高評価 ' + esc(nf(v.likes)) + ' ／ コメント ' + esc(nf(v.comments)) + '</span>'
-          };
-        }), { alt: true, format: function (x) { return pct(x, 2); } })));
-    }
-
-    // 全動画テーブル
     var cols = [
       { key: 'title', head: '動画', render: function (r) {
-          return '<a href="https://www.youtube.com/watch?v=' + esc(r.id) + '" target="_blank" rel="noopener">' + esc(r.title) + '</a>' +
-                 (r.isShort ? ' <span class="note">（ショート）</span>' : ''); } },
-      { key: 'publishedAt', head: '公開日', render: function (r) { return esc(ymd(r.publishedAt)); } },
-      { key: 'seconds', head: '長さ', num: true, render: function (r) { return esc(hms(r.seconds)); } },
-      { key: 'views', head: '再生回数', num: true, render: function (r) { return esc(nf(r.views)); } },
-      { key: 'likes', head: '高評価', num: true, render: function (r) { return esc(nf(r.likes)); } },
-      { key: 'comments', head: 'コメント', num: true, render: function (r) { return esc(nf(r.comments)); } },
-      { key: 'engagement', head: 'エンゲージ率', num: true, render: function (r) { return esc(pct(r.engagement, 2)); } }
+        return '<a href="https://www.youtube.com/watch?v=' + esc(r.id) + '" target="_blank" rel="noopener">' + esc(r.title) + '</a>' +
+          (r.isShort ? ' <span class="note">（ショート）</span>' : ''); } },
+      { key: 'publishedAt', head: '公開日', render: function (r) { return esc(r.publishedAt ? normDate(r.publishedAt.slice(0, 10)) : '—'); } },
+      { key: 'views', head: '累計再生', num: true, render: function (r) { return esc(nf(r.views)); } }
     ];
-    liveBody.appendChild(card('全動画（' + nf(vs.length) + '本）', '列見出しをクリックすると並べ替えできます。', sortableTable(cols, vs)));
+    if (A) cols = cols.concat([
+      { key: 'aViews', head: '期間内視聴', num: true, render: function (r) { return esc(r.aViews == null ? '—' : nf(r.aViews)); } },
+      { key: 'impressions', head: 'インプレ', num: true, render: function (r) { return esc(r.impressions == null ? '—' : nf(r.impressions)); } },
+      { key: 'ctr', head: 'CTR', num: true, render: function (r) { return esc(r.ctr == null ? '—' : pct(r.ctr, 2)); } },
+      { key: 'retention', head: '維持率', num: true, render: function (r) { return esc(r.retention == null ? '—' : pct(r.retention, 1)); } },
+      { key: 'avgDuration', head: '平均視聴', num: true, render: function (r) { return esc(r.avgDuration == null ? '—' : hms(r.avgDuration)); } },
+      { key: 'subs', head: '登録+', num: true, render: function (r) { return esc(r.subs == null ? '—' : nf(r.subs)); } }
+    ]);
+    host.appendChild(card('動画別（' + nf(merged.length) + '本）', '列見出しをクリックすると並べ替えできます。', sortableTable(cols, merged)));
   }
 
-  function loadLive() {
-    liveBody.innerHTML = '<div class="card"><p class="note" style="margin:0">読み込み中…</p></div>';
-    fetch('/api/youtube?max=200')
-      .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
-      .then(function (res) {
-        if (res.ok) return renderLive(res.body);
-        sub.textContent = 'ライブ取得は未設定です';
-        liveBody.innerHTML = '';
-        if (res.body && res.body.error === 'not_configured') {
-          liveBody.appendChild(setupNotice(res.body.message));
-        } else {
-          liveBody.appendChild(el('<div class="notice"><h2><span class="bad">取得できませんでした</span></h2><p class="note" style="margin:0">' +
-            esc((res.body && res.body.message) || '不明なエラー') + '</p></div>'));
-        }
-      })
-      .catch(function (e) {
-        sub.textContent = '通信エラー';
-        liveBody.innerHTML = '';
-        liveBody.appendChild(el('<div class="notice"><h2><span class="bad">通信エラー</span></h2><p class="note" style="margin:0">' + esc(e.message) + '</p></div>'));
-      });
-  }
+  // =================== GA4 ===================
+  function renderGA4(r) {
+    var host = document.getElementById('ga-body');
+    host.innerHTML = '';
 
-  // =================== CSVタブ ===================
-  function parseCSV(text) {
-    text = text.replace(/^﻿/, '');
-    var rows = [], row = [], cell = '', q = false, i;
-    for (i = 0; i < text.length; i++) {
-      var c = text[i];
-      if (q) {
-        if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
-        else cell += c;
-      } else if (c === '"') q = true;
-      else if (c === ',') { row.push(cell); cell = ''; }
-      else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
-      else if (c !== '\r') cell += c;
-    }
-    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
-    return rows.filter(function (r) { return r.some(function (x) { return String(x).trim() !== ''; }); });
-  }
-
-  var DURATION_RE = /^\d{1,3}:[0-5]\d(:[0-5]\d)?$/;
-
-  // "3:12" / "1:02:03" は秒数に換算する。素朴に数字だけ拾うと 312 になってしまう。
-  function numOf(s) {
-    if (s == null) return NaN;
-    var raw = String(s).trim();
-    if (DURATION_RE.test(raw)) {
-      var p = raw.split(':').map(Number);
-      return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1];
-    }
-    var t = raw.replace(/,/g, '').replace(/%$/, '').replace(/[^\d.\-]/g, '');
-    if (t === '' || t === '-' || t === '.') return NaN;
-    return Number(t);
-  }
-
-  var csvBody = document.getElementById('csv-body');
-
-  function renderCSV(name, rows) {
-    csvBody.innerHTML = '';
-    if (rows.length < 2) {
-      csvBody.appendChild(el('<div class="card"><h2>読み取れませんでした</h2><p class="note">データ行が見つかりません。</p></div>'));
-      return;
-    }
-    var head = rows[0].map(function (h) { return String(h).trim(); });
-    var TOTAL_RE = /^(合計|総計|Total)$/i;
-    var all = rows.slice(1);
-    // Studio のエクスポートは先頭に「合計」行が入る。含めるとグラフが合計値に支配される。
-    var data = all.filter(function (r) { return !TOTAL_RE.test(String(r[0] || '').trim()); });
-    var droppedTotal = all.length - data.length;
-
-    // 数値列を判定（8割以上が数値ならその列は数値列）
-    var numeric = head.map(function (_, ci) {
-      var ok = 0, seen = 0;
-      data.forEach(function (r) { if (r[ci] != null && String(r[ci]).trim() !== '') { seen++; if (!isNaN(numOf(r[ci]))) ok++; } });
-      return seen > 0 && ok / seen >= 0.8;
-    });
-    // 時間表記（3:12 など）の列は秒に換算済みなので、表示も時間に戻す
-    var isDur = head.map(function (_, ci) {
-      var ok = 0, seen = 0;
-      data.forEach(function (r) { var v = String(r[ci] == null ? '' : r[ci]).trim(); if (v !== '') { seen++; if (DURATION_RE.test(v)) ok++; } });
-      return seen > 0 && ok / seen >= 0.8;
-    });
-    var labelIdx = numeric.indexOf(false);
-    if (labelIdx < 0) labelIdx = 0;
-    var metricIdxs = [];
-    numeric.forEach(function (isNum, i) { if (isNum) metricIdxs.push(i); });
-
-    if (!metricIdxs.length) {
-      csvBody.appendChild(el('<div class="card"><h2>数値列が見つかりません</h2><p class="note">Studioの「詳細モード」からエクスポートしたCSVをお試しください。</p></div>'));
-      return;
-    }
-
-    var controls = el('<div class="card"><h2>' + esc(name) + '</h2>' +
-      '<p class="note">' + esc(nf(data.length)) + ' 行 × ' + esc(head.length) + ' 列を読み込みました。指標を選ぶと上位20件をグラフ化します。' +
-      (droppedTotal ? '「合計」行 ' + esc(nf(droppedTotal)) + ' 件はグラフ・表から除外しています。' : '') + '</p>' +
-      '<div class="row"><label class="f" for="metric">指標</label><select id="metric"></select>' +
-      '<label class="f" for="labelcol">ラベル列</label><select id="labelcol"></select></div>' +
-      '<div id="csv-chart"></div></div>');
-    csvBody.appendChild(controls);
-
-    var metricSel = controls.querySelector('#metric');
-    var labelSel = controls.querySelector('#labelcol');
-    metricIdxs.forEach(function (i) { metricSel.appendChild(el('<option value="' + i + '">' + esc(head[i]) + '</option>')); });
-    head.forEach(function (h, i) {
-      if (!numeric[i]) labelSel.appendChild(el('<option value="' + i + '"' + (i === labelIdx ? ' selected' : '') + '>' + esc(h) + '</option>'));
-    });
-    if (!labelSel.children.length) labelSel.appendChild(el('<option value="0">' + esc(head[0]) + '</option>'));
-
-    function drawChart() {
-      var mi = +metricSel.value, li = +labelSel.value;
-      var isRate = !isDur[mi] && /%|率|rate|ctr/i.test(head[mi]);
-      var fmt = isDur[mi] ? hms : isRate ? function (v) { return v.toFixed(2) + '%'; } : compact;
-      var series = data.map(function (r) { return { label: String(r[li] || '—'), value: numOf(r[mi]) }; })
-        .filter(function (x) { return !isNaN(x.value); })
-        .sort(function (a, b) { return b.value - a.value; })
-        .slice(0, 20);
-      var host = controls.querySelector('#csv-chart');
-      host.innerHTML = '';
-      host.appendChild(barChart(series.map(function (s) {
-        return { label: s.label, value: s.value, tip: '<b>' + esc(s.label) + '</b><span class="r">' + esc(head[mi]) + ' ' + esc(fmt(s.value)) + '</span>' };
-      }), { format: fmt }));
-    }
-    metricSel.addEventListener('change', drawChart);
-    labelSel.addEventListener('change', drawChart);
-    drawChart();
-
-    var cols = head.map(function (h, i) {
-      return { key: 'c' + i, head: h, num: numeric[i] };
-    });
-    var trows = data.map(function (r) {
-      var o = {};
-      head.forEach(function (_, i) { o['c' + i] = numeric[i] ? numOf(r[i]) : (r[i] || ''); });
-      return o;
-    });
-    cols.forEach(function (c, i) {
-      if (c.num) c.render = function (r) { var v = r[c.key]; return esc(isNaN(v) ? '—' : (isDur[i] ? hms(v) : nf(v))); };
-    });
-    csvBody.appendChild(card('全データ', '列見出しをクリックすると並べ替えできます。', sortableTable(cols, trows)));
-  }
-
-  var drop = document.getElementById('drop'), fileInput = document.getElementById('file');
-  document.getElementById('pick').addEventListener('click', function () { fileInput.click(); });
-  fileInput.addEventListener('change', function () { if (fileInput.files[0]) readFile(fileInput.files[0]); });
-  ['dragenter', 'dragover'].forEach(function (t) {
-    drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('over'); });
-  });
-  ['dragleave', 'drop'].forEach(function (t) {
-    drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove('over'); });
-  });
-  drop.addEventListener('drop', function (e) {
-    var f = e.dataTransfer && e.dataTransfer.files[0];
-    if (f) readFile(f);
-  });
-  function readFile(f) {
-    var fr = new FileReader();
-    fr.onload = function () {
-      try { renderCSV(f.name, parseCSV(String(fr.result))); }
-      catch (err) {
-        csvBody.innerHTML = '';
-        csvBody.appendChild(el('<div class="card"><h2>解析に失敗しました</h2><p class="note">' + esc(err.message) + '</p></div>'));
+    if (!r.ok) {
+      if (r.body && r.body.error === 'not_configured') {
+        host.appendChild(setupCard('GA4 未接続', r.body.message, [
+          'Google Cloud でサービスアカウントを作成し、JSONキーを発行',
+          'GA4 の管理 → プロパティのアクセス管理 で、そのサービスアカウントのメールアドレスを<strong>「閲覧者」</strong>として追加',
+          'Vercel の環境変数に <code>GA4_PROPERTY_ID</code>（506324594）と <code>GOOGLE_SERVICE_ACCOUNT_JSON</code>（JSON全文）を追加',
+          'Redeploy して再読み込み'
+        ]));
+      } else {
+        host.appendChild(setupCard('GA4 取得エラー', (r.body && r.body.message) || '不明なエラー',
+          r.body && r.body.hint ? [r.body.hint] : []));
       }
-    };
-    fr.readAsText(f, 'utf-8');
+      return;
+    }
+
+    var d = r.body, cvKey = d.conversionMetric;
+    var totalSessions = sum(d.daily, 'sessions');
+    var totalUsers = sum(d.daily, 'activeUsers');
+    var totalViews = sum(d.daily, 'screenPageViews');
+    var totalCv = cvKey ? sum(d.daily, cvKey) : null;
+    var ytSessions = sum(d.youtubeDaily, 'sessions');
+    var ytCv = cvKey ? sum(d.youtubeDaily, cvKey) : null;
+
+    host.appendChild(tiles([
+      ['セッション', compact(totalSessions), '直近' + d.days + '日・' + d.pathPrefix],
+      ['ユーザー', compact(totalUsers), 'アクティブユーザー'],
+      ['ページビュー', compact(totalViews), ''],
+      cvKey ? ['コンバージョン', nf(totalCv), 'GA4指標: ' + cvKey] : ['コンバージョン', '要設定', 'GA4でキーイベント未定義'],
+      ['YouTube経由 セッション', nf(ytSessions),
+        totalSessions ? '全体の ' + pct(ytSessions / totalSessions * 100, 1) : ''],
+      cvKey ? ['YouTube経由 CV', nf(ytCv), ytSessions ? 'CVR ' + pct(ytCv / ytSessions * 100, 2) : '—'] : null
+    ].filter(Boolean)));
+
+    if (d.daily.length) {
+      host.appendChild(card('セッションの推移（' + d.pathPrefix + '）',
+        'StockSun本体と同一プロパティのため、パスで絞り込んでいます。45日を超える期間は週次合計。',
+        columnChart(dailyPoints(d.daily, 'date', 'sessions', 'セッション'))));
+    }
+
+    if (d.youtubeDaily.length) {
+      host.appendChild(card('YouTube経由 セッションの推移',
+        '参照元に youtube を含むセッション。動画の効果はここで評価します。',
+        columnChart(dailyPoints(d.youtubeDaily, 'date', 'sessions', 'セッション'), { variant: 'alt' })));
+    } else {
+      host.appendChild(card('YouTube経由 セッションの推移',
+        '期間内に YouTube 経由のセッションが記録されていません。概要欄・終了画面のUTM整備が先です。',
+        el('<p class="note">データなし</p>')));
+    }
+
+    if (d.bySourceMedium.length) {
+      host.appendChild(card('参照元／メディア別 セッション', '上位25件。',
+        barChart(d.bySourceMedium.map(function (x) {
+          return { label: x.sessionSourceMedium, value: x.sessions,
+            tip: '<b>' + esc(x.sessionSourceMedium) + '</b><span class="r">セッション ' + esc(nf(x.sessions)) +
+                 '<br>ユーザー ' + esc(nf(x.activeUsers)) + '</span>' };
+        }), { format: compact })));
+    }
+
+    if (d.byPage.length) {
+      var pcols = [
+        { key: 'pagePath', head: 'ページ' },
+        { key: 'screenPageViews', head: 'PV', num: true, render: function (x) { return esc(nf(x.screenPageViews)); } },
+        { key: 'sessions', head: 'セッション', num: true, render: function (x) { return esc(nf(x.sessions)); } },
+        { key: 'activeUsers', head: 'ユーザー', num: true, render: function (x) { return esc(nf(x.activeUsers)); } }
+      ];
+      host.appendChild(card('ページ別（上位50）', '列見出しをクリックすると並べ替えできます。', sortableTable(pcols, d.byPage)));
+    }
   }
 
-  // =================== タブ ===================
+  // =================== 読み込み ===================
+  function loadAll() {
+    days = parseInt(document.getElementById('range').value, 10) || 90;
+    document.getElementById('yt-body').innerHTML = '<div class="card"><p class="note">読み込み中…</p></div>';
+    document.getElementById('ga-body').innerHTML = '<div class="card"><p class="note">読み込み中…</p></div>';
+
+    Promise.all([
+      getJSON('/api/youtube?max=200'),
+      getJSON('/api/youtube-analytics?days=' + days)
+    ]).then(function (res) { renderYouTube(res[0], res[1]); })
+      .catch(function (e) {
+        document.getElementById('yt-body').innerHTML = '';
+        document.getElementById('yt-body').appendChild(setupCard('通信エラー', e.message, []));
+      });
+
+    getJSON('/api/ga4?days=' + days).then(renderGA4).catch(function (e) {
+      document.getElementById('ga-body').innerHTML = '';
+      document.getElementById('ga-body').appendChild(setupCard('通信エラー', e.message, []));
+    });
+  }
+
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
     t.addEventListener('click', function () {
       Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
         x.setAttribute('aria-selected', String(x === t));
       });
-      document.getElementById('panel-live').classList.toggle('hide', t.dataset.tab !== 'live');
-      document.getElementById('panel-csv').classList.toggle('hide', t.dataset.tab !== 'csv');
+      document.getElementById('panel-yt').classList.toggle('hide', t.dataset.tab !== 'yt');
+      document.getElementById('panel-ga').classList.toggle('hide', t.dataset.tab !== 'ga');
     });
   });
-  document.getElementById('reload').addEventListener('click', loadLive);
+  document.getElementById('reload').addEventListener('click', loadAll);
+  document.getElementById('range').addEventListener('change', loadAll);
 
-  loadLive();
+  loadAll();
 })();
 </script>
 </body>
