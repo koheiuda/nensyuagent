@@ -69,6 +69,47 @@ HTMLは静的なので誰でも開けますが、**データはAPI経由でし�
 
 ## セットアップ
 
+### 自動セットアップ（推奨）
+
+`gcloud` と `vercel` でできる部分は、スクリプトにまとめてあります。
+リポジトリのルートで実行してください。
+
+```powershell
+# Windows / PowerShell
+gcloud auth login              # 最初の1回だけ（ブラウザで承認）
+.\tools\setup-1-gcloud.ps1    # プロジェクト・API有効化・サービスアカウント・APIキー
+# → 表示されるコンソール操作 [1][2] を実施
+.\tools\setup-2-deploy.ps1 -GscSiteUrl "sc-domain:stock-sun.com" `
+    -DashboardUser kohei -DashboardPassword "強めのパスワード"
+```
+
+```bash
+# macOS / Linux / Git Bash
+gcloud auth login
+./tools/setup-1-gcloud.sh
+# → 表示されるコンソール操作 [1][2] を実施
+DASHBOARD_USER=kohei DASHBOARD_PASSWORD='強めのパスワード' \
+  ./tools/setup-2-deploy.sh "sc-domain:stock-sun.com"
+```
+
+スクリプトが自動でやること：GCPプロジェクト作成／API 5つの有効化／サービスアカウント作成と
+JSON鍵の発行／YouTube Data API v3 に限定したAPIキーの発行／Vercelへのデプロイ／
+環境変数の登録（JSONはbase64化）／反映のための再デプロイ。
+
+**スクリプトでは自動化できないもの**（Googleがコンソール操作か人間の同意を要求するため）:
+
+| 作業 | 理由 |
+|---|---|
+| GA4プロパティへのユーザー追加 | Admin APIを叩くには既にGA4管理者権限のOAuthが必要という循環になる |
+| Search Console へのユーザー追加 | **ユーザー管理APIが存在しない** |
+| OAuth同意画面の設定 | コンソール専用 |
+| OAuthクライアント（デスクトップアプリ）の作成 | gcloudにコマンドが無い |
+| リフレッシュトークンの承認 | Googleが人間の同意を必須にしている |
+
+`setup-1-gcloud` が、これら4つの手順とURLを実行後に表示します。
+
+以下は手動で行う場合の詳細です。
+
 ### 1. YouTube 公開指標（APIキー）
 1. Google Cloud → APIとサービス → ライブラリ → **YouTube Data API v3** を有効化
 2. 認証情報 → APIキーを作成（キーの制限で YouTube Data API v3 のみに限定推奨）
