@@ -9,6 +9,9 @@ const { requireAuth } = require('./_auth.js');
 const BASE = 'https://youtubeanalytics.googleapis.com/v2/reports';
 const CHANNEL_RE = /^UC[A-Za-z0-9_-]{22}$/;
 const DEFAULT_CHANNEL = 'UCwrivK-bKlDu6ZJzC01GPBw';
+// YouTube Analytics は1〜2日遅れて確定する。直前まで取ると最新の数日だけ不当に低く出て、
+// 推移グラフが「落ちている」ように誤読される。確定している分だけを対象にする。
+const LAG_DAYS = 2;
 
 function send(res, status, body) {
   res.statusCode = status;
@@ -84,12 +87,13 @@ module.exports = async (req, res) => {
     return send(res, 400, { error: 'bad_channel_id', message: 'チャンネルIDの形式が不正です。' });
   }
 
-  const startDate = isoDaysAgo(days);
-  const endDate = isoDaysAgo(1); // 当日は確定していないので前日まで
+  const startDate = isoDaysAgo(days + LAG_DAYS);
+  const endDate = isoDaysAgo(LAG_DAYS);
 
   try {
     const token = await refreshTokenToken(clientId, clientSecret, refresh);
-    const out = { fetchedAt: new Date().toISOString(), channelId, startDate, endDate, reports: {}, failed: {} };
+    const out = { fetchedAt: new Date().toISOString(), channelId, startDate, endDate,
+                  lagDays: LAG_DAYS, reports: {}, failed: {} };
 
     for (const [name, params] of Object.entries(REPORTS)) {
       const qs = new URLSearchParams(Object.assign({

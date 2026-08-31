@@ -463,7 +463,8 @@
 
     var ch = pub.body.channel, vids = pub.body.videos || [];
     document.getElementById('sub').innerHTML =
-      esc(ch.title) + ' ・ <code>' + esc(ch.id) + '</code> ・ 取得 ' + esc(normDate(pub.body.fetchedAt.slice(0, 10)));
+      esc(ch.title) + ' ・ <code>' + esc(ch.id) + '</code>' +
+      (pub.body.fetchedAt ? ' ・ 取得 ' + esc(String(pub.body.fetchedAt).slice(0, 10)) : '');
 
     var A = (ana.ok && ana.body.reports) ? ana.body.reports : null;
     var daily = (A && A.daily) || [];
@@ -501,7 +502,8 @@
     }
 
     if (daily.length) {
-      host.appendChild(card('視聴回数の推移', 'YouTube Analytics の実視聴データ。当日は未確定のため前日まで。45日を超える期間は週次合計で表示します。',
+      host.appendChild(card('視聴回数の推移', 'YouTube Analytics の実視聴データ。確定に1〜2日かかるため直近' +
+        (ana.ok && ana.body.lagDays ? ana.body.lagDays : 2) + '日は含めません。45日を超える期間は週次合計。',
         columnChart(dailyPoints(daily, 'day', 'views', '視聴回数'))));
     }
 
@@ -650,24 +652,20 @@
       document.getElementById(id).innerHTML = '<div class="card"><p class="note">読み込み中…</p></div>';
     });
 
-    getJSON('/api/gsc?days=' + days).then(renderGSC).catch(function (e) {
-      document.getElementById('gsc-body').innerHTML = '';
-      document.getElementById('gsc-body').appendChild(setupCard('通信エラー', e.message, []));
-    });
+    getJSON('/api/gsc?days=' + days)
+      .catch(function (e) { return { ok: false, status: 0, body: { message: '通信エラー: ' + e.message }, path: '' }; })
+      .then(renderGSC);
+
+    // 片方が通信エラーでも、もう片方は描けるようにする。
+    // Promise.all だと Analytics が落ちただけで公開指標まで道連れになる。
+    function softFail(e) { return { ok: false, status: 0, body: { message: '通信エラー: ' + e.message }, path: '' }; }
 
     Promise.all([
-      getJSON('/api/youtube?max=200'),
-      getJSON('/api/youtube-analytics?days=' + days)
-    ]).then(function (res) { renderYouTube(res[0], res[1]); })
-      .catch(function (e) {
-        document.getElementById('yt-body').innerHTML = '';
-        document.getElementById('yt-body').appendChild(setupCard('通信エラー', e.message, []));
-      });
+      getJSON('/api/youtube?max=200').catch(softFail),
+      getJSON('/api/youtube-analytics?days=' + days).catch(softFail)
+    ]).then(function (res) { renderYouTube(res[0], res[1]); });
 
-    getJSON('/api/ga4?days=' + days).then(renderGA4).catch(function (e) {
-      document.getElementById('ga-body').innerHTML = '';
-      document.getElementById('ga-body').appendChild(setupCard('通信エラー', e.message, []));
-    });
+    getJSON('/api/ga4?days=' + days).catch(softFail).then(renderGA4);
   }
 
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
