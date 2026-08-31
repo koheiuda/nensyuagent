@@ -37,14 +37,24 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--plane); color: var(--text-primary);
          font: 14px/1.6 system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 72px; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 24px 56px; }
 
   header.top { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; }
-  h1 { font-size: 20px; margin: 0; }
-  .sub { color: var(--text-secondary); font-size: 13px; margin: 3px 0 18px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -.02em; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin: 4px 0 14px; }
   .sub code { font-size: 12px; background: var(--track); padding: 1px 5px; border-radius: 4px; }
 
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+  .statusbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 2px 0 16px; }
+  .statusitem { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0;
+                background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; }
+  .statusitem .source { color: var(--text-secondary); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px;
+           font-size: 11px; font-weight: 650; background: var(--track); color: var(--muted); }
+  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge.ok { color: #087f5b; background: rgba(27,175,122,.11); }
+  .badge.warn { color: var(--warn-ink); background: var(--warn-bg); }
+  .badge.error { color: #c23b22; background: rgba(194,59,34,.10); }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
   .tab { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
          padding: 9px 14px; font: inherit; font-weight: 600; color: var(--text-secondary); cursor: pointer; border-radius: 6px 6px 0 0; }
   .tab:hover { background: var(--track); }
@@ -103,9 +113,11 @@
   td a { color: var(--series-1); text-decoration: none; }
   td a:hover { text-decoration: underline; }
 
-  .setup { border: 1px solid var(--warn-line); background: var(--warn-bg); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
-  .setup h2 { font-size: 13px; margin: 0 0 8px; color: var(--warn-ink); text-transform: uppercase; letter-spacing: .02em; }
-  .setup p { margin: 0 0 8px; font-size: 13px; color: var(--text-secondary); }
+  .setup { border: 1px solid var(--warn-line); background: var(--warn-bg); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  .setup h2 { font-size: 13px; margin: 0 0 4px; color: var(--warn-ink); letter-spacing: .01em; }
+  .setup p { margin: 0; font-size: 13px; color: var(--text-secondary); }
+  .setup details { margin-top: 8px; }
+  .setup summary { cursor: pointer; color: var(--warn-ink); font-size: 12px; font-weight: 650; }
   .setup ol { margin: 8px 0 0; padding-left: 20px; }
   .setup li { margin-bottom: 5px; color: var(--text-secondary); font-size: 13px; }
 
@@ -116,7 +128,22 @@
   #tip .r { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   .hide { display: none !important; }
+  .skeleton { height: 88px; border-radius: 12px; margin-bottom: 12px; background: linear-gradient(90deg, var(--track), var(--surface-1), var(--track)); background-size: 200% 100%; animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { to { background-position: -200% 0; } }
   footer { color: var(--muted); font-size: 12px; margin-top: 26px; border-top: 1px solid var(--border); padding-top: 14px; }
+  @media (max-width: 720px) {
+    .wrap { padding: 18px 14px 40px; }
+    header.top { align-items: flex-start; }
+    header.top .controls { width: 100%; }
+    .statusbar { grid-template-columns: 1fr; gap: 7px; }
+    .tabs { overflow-x: auto; }
+    .tab { white-space: nowrap; padding-inline: 12px; }
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .tile { padding: 12px; }
+    .tile .v { font-size: 23px; }
+    .card { padding: 14px; }
+    .hrow { grid-template-columns: minmax(100px, 1fr) 42% auto; gap: 7px; }
+  }
 </style>
 </head>
 <body>
@@ -124,7 +151,7 @@
   <header class="top">
     <div>
       <h1>年収エージェント アナリティクス</h1>
-      <p class="sub" id="sub">読み込み中…</p>
+      <p class="sub" id="sub">YouTube施策を、指名検索・視聴・サイト送客まで一画面で評価</p>
     </div>
     <div class="controls" style="margin:0">
       <label for="range">期間</label>
@@ -137,6 +164,12 @@
       <button class="btn" id="reload" type="button">再読み込み</button>
     </div>
   </header>
+
+  <div class="statusbar" aria-label="データ接続状況">
+    <div class="statusitem"><span class="source">Search Console</span><span class="badge" id="status-gsc">確認中</span></div>
+    <div class="statusitem"><span class="source">YouTube</span><span class="badge" id="status-yt">確認中</span></div>
+    <div class="statusitem"><span class="source">GA4 / 年収エージェント</span><span class="badge" id="status-ga">確認中</span></div>
+  </div>
 
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" aria-selected="true" data-tab="gsc">指名検索（主KPI）</button>
@@ -304,8 +337,15 @@
   }
 
   function setupCard(title, message, steps) {
-    return el('<div class="setup"><h2>' + esc(title) + '</h2><p>' + esc(message) + '</p><ol>' +
-      steps.map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol></div>');
+    var detail = steps.length ? '<details><summary>接続手順を表示</summary><ol>' +
+      steps.map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol></details>' : '';
+    return el('<div class="setup"><h2>' + esc(title) + '</h2><p>' + esc(message) + '</p>' + detail + '</div>');
+  }
+
+  function setStatus(id, label, state) {
+    var node = document.getElementById('status-' + id);
+    node.textContent = label;
+    node.className = 'badge ' + (state || '');
   }
 
   // 日次のままだと90本以上は読めないので、45本を超えたら週次に丸める
@@ -356,8 +396,9 @@
     var host = document.getElementById('gsc-body');
     host.innerHTML = '';
 
-    if (r.status === 401) { host.appendChild(authCard(r.path)); return; }
+    if (r.status === 401) { setStatus('gsc', '認証が必要', 'warn'); host.appendChild(authCard(r.path)); return; }
     if (!r.ok) {
+      setStatus('gsc', r.body && r.body.error === 'not_configured' ? '接続設定待ち' : '取得エラー', r.body && r.body.error === 'not_configured' ? 'warn' : 'error');
       if (r.body && r.body.error === 'not_configured') {
         host.appendChild(setupCard('Search Console 未接続', r.body.message, [
           'GA4と同じサービスアカウントで構いません（JSONキーは共通）',
@@ -372,6 +413,8 @@
       }
       return;
     }
+
+    setStatus('gsc', '接続済み', 'ok');
 
     var d = r.body;
     // GSC はクリック数順で返すため、表示回数の棒グラフ用に並べ替える
@@ -451,8 +494,9 @@
     var host = document.getElementById('yt-body');
     host.innerHTML = '';
 
-    if (pub.status === 401) { host.appendChild(authCard(pub.path)); return; }
+    if (pub.status === 401) { setStatus('yt', '認証が必要', 'warn'); host.appendChild(authCard(pub.path)); return; }
     if (!pub.ok) {
+      setStatus('yt', pub.body && pub.body.error === 'not_configured' ? '接続設定待ち' : '取得エラー', pub.body && pub.body.error === 'not_configured' ? 'warn' : 'error');
       host.appendChild(setupCard('YouTube Data API 未接続', pub.body.message || '取得できませんでした', [
         'Google Cloud で <code>YouTube Data API v3</code> を有効化し、APIキーを作成',
         'Vercel の環境変数に <code>YOUTUBE_API_KEY</code> を追加',
@@ -461,10 +505,11 @@
       return;
     }
 
+    setStatus('yt', ana.ok ? '全指標 接続済み' : '公開指標のみ', ana.ok ? 'ok' : 'warn');
+
     var ch = pub.body.channel, vids = pub.body.videos || [];
-    document.getElementById('sub').innerHTML =
-      esc(ch.title) + ' ・ <code>' + esc(ch.id) + '</code>' +
-      (pub.body.fetchedAt ? ' ・ 取得 ' + esc(String(pub.body.fetchedAt).slice(0, 10)) : '');
+    document.getElementById('sub').textContent = ch.title +
+      (pub.body.fetchedAt ? ' ・ 最終取得 ' + String(pub.body.fetchedAt).slice(0, 10) : '');
 
     var A = (ana.ok && ana.body.reports) ? ana.body.reports : null;
     var daily = (A && A.daily) || [];
@@ -575,8 +620,9 @@
     var host = document.getElementById('ga-body');
     host.innerHTML = '';
 
-    if (r.status === 401) { host.appendChild(authCard(r.path)); return; }
+    if (r.status === 401) { setStatus('ga', '認証が必要', 'warn'); host.appendChild(authCard(r.path)); return; }
     if (!r.ok) {
+      setStatus('ga', r.body && r.body.error === 'not_configured' ? '接続設定待ち' : '取得エラー', r.body && r.body.error === 'not_configured' ? 'warn' : 'error');
       if (r.body && r.body.error === 'not_configured') {
         host.appendChild(setupCard('GA4 未接続', r.body.message, [
           'Google Cloud でサービスアカウントを作成し、JSONキーを発行',
@@ -590,6 +636,8 @@
       }
       return;
     }
+
+    setStatus('ga', '接続済み', 'ok');
 
     var d = r.body, cvKey = d.conversionMetric;
     var totalSessions = sum(d.daily, 'sessions');
@@ -648,8 +696,9 @@
   // =================== 読み込み ===================
   function loadAll() {
     days = parseInt(document.getElementById('range').value, 10) || 90;
+    ['gsc', 'yt', 'ga'].forEach(function (id) { setStatus(id, '確認中', ''); });
     ['gsc-body', 'yt-body', 'ga-body'].forEach(function (id) {
-      document.getElementById(id).innerHTML = '<div class="card"><p class="note">読み込み中…</p></div>';
+      document.getElementById(id).innerHTML = '<div class="skeleton" aria-label="読み込み中"></div><div class="skeleton" aria-hidden="true"></div>';
     });
 
     getJSON('/api/gsc?days=' + days)
