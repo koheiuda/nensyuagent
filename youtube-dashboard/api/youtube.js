@@ -1,6 +1,8 @@
 // YouTube Data API v3 のプロキシ。
 // APIキーはサーバー側の環境変数のみで保持し、ブラウザには一切返さない。
 const API = 'https://www.googleapis.com/youtube/v3';
+const { requireAuth } = require('./_auth.js');
+
 const CHANNEL_RE = /^UC[A-Za-z0-9_-]{22}$/;
 const DEFAULT_CHANNEL = 'UCwrivK-bKlDu6ZJzC01GPBw'; // 年収エージェント
 
@@ -59,6 +61,7 @@ function mapVideo(v) {
 }
 
 module.exports = async (req, res) => {
+  if (!requireAuth(req, res)) return;
   const key = process.env.YOUTUBE_API_KEY;
   const url = new URL(req.url, 'http://localhost');
   const channelId = url.searchParams.get('channelId') || process.env.YOUTUBE_CHANNEL_ID || DEFAULT_CHANNEL;

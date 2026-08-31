@@ -2,6 +2,8 @@
 // StockSun本体と同一プロパティのため、パス絞り込みは必須。
 const { serviceAccountToken, authedFetch } = require('./_google.js');
 
+const { requireAuth } = require('./_auth.js');
+
 const SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
 const BASE = 'https://analyticsdata.googleapis.com/v1beta';
 const PATH_PREFIX = '/nensyuagent/';
@@ -65,6 +67,7 @@ function toRows(report) {
 }
 
 module.exports = async (req, res) => {
+  if (!requireAuth(req, res)) return;
   const propertyId = process.env.GA4_PROPERTY_ID;
   const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   const url = new URL(req.url, 'http://localhost');

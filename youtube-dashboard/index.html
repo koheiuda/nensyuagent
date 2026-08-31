@@ -331,8 +331,20 @@
 
   function getJSON(path) {
     return fetch(path).then(function (r) {
-      return r.json().then(function (b) { return { ok: r.ok, body: b }; });
+      return r.json().catch(function () { return {}; })
+        .then(function (b) { return { ok: r.ok, status: r.status, body: b, path: path }; });
     });
+  }
+
+  // Basic認証がかかっている場合、fetch の 401 ではブラウザの認証ダイアログが出ない。
+  // 同じURLを新しいタブで「ページとして」開けばダイアログが出て、以降は fetch も通る。
+  function authCard(path) {
+    var c = el('<div class="setup"><h2>認証が必要です</h2>' +
+      '<p>このダッシュボードは Basic 認証で保護されています。下のボタンで一度認証してから再読み込みしてください。</p></div>');
+    var b = el('<button class="btn" type="button">認証する（新しいタブが開きます）</button>');
+    b.addEventListener('click', function () { window.open(path, '_blank', 'noopener'); });
+    c.appendChild(b);
+    return c;
   }
 
   var days = 90;
@@ -342,6 +354,7 @@
     var host = document.getElementById('yt-body');
     host.innerHTML = '';
 
+    if (pub.status === 401) { host.appendChild(authCard(pub.path)); return; }
     if (!pub.ok) {
       host.appendChild(setupCard('YouTube Data API 未接続', pub.body.message || '取得できませんでした', [
         'Google Cloud で <code>YouTube Data API v3</code> を有効化し、APIキーを作成',
@@ -463,6 +476,7 @@
     var host = document.getElementById('ga-body');
     host.innerHTML = '';
 
+    if (r.status === 401) { host.appendChild(authCard(r.path)); return; }
     if (!r.ok) {
       if (r.body && r.body.error === 'not_configured') {
         host.appendChild(setupCard('GA4 未接続', r.body.message, [

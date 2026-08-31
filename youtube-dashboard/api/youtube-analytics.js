@@ -4,6 +4,8 @@
 // リフレッシュトークン方式を使う。トークンの発行は tools/get_youtube_refresh_token.py を一度だけ実行する。
 const { refreshTokenToken, authedFetch } = require('./_google.js');
 
+const { requireAuth } = require('./_auth.js');
+
 const BASE = 'https://youtubeanalytics.googleapis.com/v2/reports';
 const CHANNEL_RE = /^UC[A-Za-z0-9_-]{22}$/;
 const DEFAULT_CHANNEL = 'UCwrivK-bKlDu6ZJzC01GPBw';
@@ -62,6 +64,7 @@ function isoDaysAgo(days) {
 }
 
 module.exports = async (req, res) => {
+  if (!requireAuth(req, res)) return;
   const clientId = process.env.YOUTUBE_CLIENT_ID;
   const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
   const refresh = process.env.YOUTUBE_REFRESH_TOKEN;
