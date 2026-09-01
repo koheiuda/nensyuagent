@@ -11,8 +11,10 @@ import os
 import secrets
 import sys
 import urllib.parse
+import urllib.error
 import urllib.request
 import webbrowser
+from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
@@ -85,6 +87,28 @@ def get_authorized_channel_ids(access_token: str) -> list[str]:
     return [item["id"] for item in payload.get("items", []) if item.get("id")]
 
 
+def can_access_channel_analytics(access_token: str, channel_id: str) -> bool:
+    params = urllib.parse.urlencode(
+        {
+            "ids": f"channel=={channel_id}",
+            "startDate": (date.today() - timedelta(days=7)).isoformat(),
+            "endDate": date.today().isoformat(),
+            "metrics": "views",
+        }
+    )
+    request = urllib.request.Request(
+        f"https://youtubeanalytics.googleapis.com/v2/reports?{params}",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30):
+            return True
+    except urllib.error.HTTPError as error:
+        if error.code in {401, 403}:
+            return False
+        raise
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-browser", action="store_true")
@@ -109,7 +133,9 @@ def main() -> int:
         "response_type": "code",
         "scope": " ".join(SCOPES),
         "access_type": "offline",
-        "include_granted_scopes": "true",
+        "include_granted_scopes": os.environ.get(
+            "YOUTUBE_INCLUDE_GRANTED_SCOPES", "true"
+        ).strip(),
         "prompt": os.environ.get("YOUTUBE_OAUTH_PROMPT", "select_account consent").strip(),
         "state": state,
         "code_challenge": challenge,
@@ -139,7 +165,15 @@ def main() -> int:
     channel_ids = get_authorized_channel_ids(access_token) if access_token else []
     expected_channel_id = os.environ.get("YOUTUBE_CHANNEL_ID", "").strip()
     print(f"AUTHORIZED_CHANNEL_IDS={','.join(channel_ids)}")
-    if expected_channel_id and expected_channel_id not in channel_ids:
+    has_expected_channel_access = (
+        expected_channel_id in channel_ids
+        or (
+            bool(expected_channel_id)
+            and bool(access_token)
+            and can_access_channel_analytics(access_token, expected_channel_id)
+        )
+    )
+    if expected_channel_id and not has_expected_channel_access:
         print(
             f"対象外のYouTubeチャンネルです。期待値: {expected_channel_id}",
             file=sys.stderr,
