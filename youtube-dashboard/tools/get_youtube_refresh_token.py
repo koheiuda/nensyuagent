@@ -110,7 +110,7 @@ def main() -> int:
         "scope": " ".join(SCOPES),
         "access_type": "offline",
         "include_granted_scopes": "true",
-        "prompt": "select_account consent",
+        "prompt": os.environ.get("YOUTUBE_OAUTH_PROMPT", "select_account consent").strip(),
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
