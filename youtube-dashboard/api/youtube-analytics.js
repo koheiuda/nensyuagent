@@ -92,12 +92,27 @@ module.exports = async (req, res) => {
 
   try {
     const token = await refreshTokenToken(clientId, clientSecret, refresh);
+    const mine = await authedFetch(
+      'https://www.googleapis.com/youtube/v3/channels?part=id&mine=true&maxResults=50',
+      token,
+      { method: 'GET' }
+    );
+    const authorizedChannelIds = (mine.items || []).map(function (item) { return item.id; });
+    if (!authorizedChannelIds.includes(channelId)) {
+      return send(res, 403, {
+        error: 'wrong_youtube_account',
+        message: 'OAuthで承認したGoogleアカウントは、対象のYouTubeチャンネルを所有していません。',
+        channelId,
+        authorizedChannelIds,
+      });
+    }
+
     const out = { fetchedAt: new Date().toISOString(), channelId, startDate, endDate,
                   lagDays: LAG_DAYS, reports: {}, failed: {} };
 
     for (const [name, params] of Object.entries(REPORTS)) {
       const qs = new URLSearchParams(Object.assign({
-        ids: 'channel==' + channelId,
+        ids: 'channel==MINE',
         startDate,
         endDate,
       }, params));

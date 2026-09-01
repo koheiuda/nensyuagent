@@ -100,11 +100,14 @@ def main() -> int:
         "scope": " ".join(SCOPES),
         "access_type": "offline",
         "include_granted_scopes": "true",
-        "prompt": "consent",
+        "prompt": "select_account consent",
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
     }
+    login_hint = os.environ.get("YOUTUBE_LOGIN_HINT", "").strip()
+    if login_hint:
+        params["login_hint"] = login_hint
     authorization_url = f"{AUTH_URL}?{urllib.parse.urlencode(params)}"
     print(f"AUTHORIZATION_URL={authorization_url}", flush=True)
     if not args.no_browser:
