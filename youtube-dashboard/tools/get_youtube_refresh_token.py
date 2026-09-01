@@ -75,6 +75,16 @@ def exchange_code(client_id: str, client_secret: str, code: str, redirect_uri: s
         return json.load(response)
 
 
+def get_authorized_channel_ids(access_token: str) -> list[str]:
+    request = urllib.request.Request(
+        "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = json.load(response)
+    return [item["id"] for item in payload.get("items", []) if item.get("id")]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-browser", action="store_true")
@@ -124,6 +134,17 @@ def main() -> int:
     if not refresh_token:
         print("リフレッシュトークンが返りませんでした。prompt=consent で再承認してください。", file=sys.stderr)
         return 4
+
+    access_token = tokens.get("access_token", "")
+    channel_ids = get_authorized_channel_ids(access_token) if access_token else []
+    expected_channel_id = os.environ.get("YOUTUBE_CHANNEL_ID", "").strip()
+    print(f"AUTHORIZED_CHANNEL_IDS={','.join(channel_ids)}")
+    if expected_channel_id and expected_channel_id not in channel_ids:
+        print(
+            f"対象外のYouTubeチャンネルです。期待値: {expected_channel_id}",
+            file=sys.stderr,
+        )
+        return 5
 
     print(f"YOUTUBE_REFRESH_TOKEN={refresh_token}")
     return 0
