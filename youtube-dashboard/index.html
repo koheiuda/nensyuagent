@@ -169,6 +169,8 @@
          border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 24px rgba(0,0,0,.14); max-width: 290px; }
   #tip b { display: block; margin-bottom: 3px; }
   #tip .r { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  #tip.pinned { pointer-events: auto; }
+  #tip .tip-close { float: right; margin: -3px -4px 4px 8px; border: 0; background: transparent; color: var(--muted); font: 700 16px/1 system-ui; cursor: pointer; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   .hide { display: none !important; }
   .skeleton { height: 88px; border-radius: 12px; margin-bottom: 12px; background: linear-gradient(90deg, var(--track), var(--surface-1), var(--track)); background-size: 200% 100%; animation: pulse 1.2s ease-in-out infinite; }
@@ -198,8 +200,7 @@
   .recommend-block li { margin: 7px 0; line-height: 1.55; }
   .recommend-block.good { border-left: 4px solid var(--series-3); }
   .recommend-block.caution { border-left: 4px solid var(--warn-line); }
-  .ideas-table { position: relative; }
-  .ideas-table::after { content: '横にスクロールできます →'; position: sticky; left: 8px; display: inline-block; margin: 5px 0; color: var(--muted); font-size: 10px; }
+  .ideas-scroll-hint { margin: 0 0 6px; color: var(--muted); font-size: 11px; }
   .ideas-table th:first-child, .ideas-table td:first-child { position: sticky; left: 0; z-index: 3; min-width: 210px; background: var(--surface-1); box-shadow: 5px 0 8px rgba(0,0,0,.05); }
   .evidence { color: var(--muted); font-size: 11px; }
   .mom { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; white-space: nowrap; }
@@ -226,6 +227,7 @@
     .statusbar { grid-template-columns: 1fr; gap: 7px; }
     .overview-grid { grid-template-columns: 1fr; }
     .recommend-grid { grid-template-columns: 1fr; }
+    .ideas-table th:first-child, .ideas-table td:first-child { min-width: 160px; max-width: 160px; }
     .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .tile { padding: 12px; }
     .tile .v { font-size: 23px; }
@@ -241,10 +243,10 @@
   <nav class="nav-group">
     <p class="nav-label">ダッシュボード</p>
     <div class="tabs" role="tablist" aria-label="分析メニュー">
-      <button class="tab" role="tab" aria-selected="true" data-tab="overview">概要</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="ideas">改善提案</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="yt">YouTube分析</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="ga">サイト送客・CV</button>
+      <button id="tab-overview" class="tab" role="tab" aria-controls="panel-overview" aria-selected="true" data-tab="overview">概要</button>
+      <button id="tab-ideas" class="tab" role="tab" aria-controls="panel-ideas" aria-selected="false" data-tab="ideas">改善提案</button>
+      <button id="tab-yt" class="tab" role="tab" aria-controls="panel-yt" aria-selected="false" data-tab="yt">YouTube分析</button>
+      <button id="tab-ga" class="tab" role="tab" aria-controls="panel-ga" aria-selected="false" data-tab="ga">サイト送客・CV</button>
     </div>
   </nav>
 </aside>
@@ -271,7 +273,7 @@
     <div class="statusitem"><span class="source">サイト送客・CV（GA4）</span><span class="badge" id="status-ga">確認中</span></div>
   </div>
 
-  <section id="panel-overview">
+  <section id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
     <div class="overview-grid">
       <button class="card overview-card" type="button" data-open-tab="yt">
         <span class="arrow">→</span><h2>YouTube分析</h2>
@@ -284,9 +286,9 @@
     </div>
     <div id="overview-data" class="overview-data"></div>
   </section>
-  <section id="panel-yt" class="hide"><div id="yt-body"></div></section>
-  <section id="panel-ga" class="hide"><div id="ga-body"></div></section>
-  <section id="panel-ideas" class="hide"><div id="ideas-body"></div></section>
+  <section id="panel-yt" role="tabpanel" aria-labelledby="tab-yt" class="hide"><div id="yt-body"></div></section>
+  <section id="panel-ga" role="tabpanel" aria-labelledby="tab-ga" class="hide"><div id="ga-body"></div></section>
+  <section id="panel-ideas" role="tabpanel" aria-labelledby="tab-ideas" class="hide"><div id="ideas-body"></div></section>
 
   <footer>
     出典：YouTube Data API v3（公開指標）／ YouTube Analytics API v2（非公開指標）／ GA4 Data API。サイト全体指標は<code>/nensyuagent/</code>、YouTube送客は<code>agent-ch_desc</code>で識別。
@@ -311,7 +313,7 @@
   function hideTip(force) {
     if (!force && pinnedHelp) return;
     tip.style.opacity = '0';
-    if (force) pinnedHelp = null;
+    if (force) { pinnedHelp = null; tip.classList.remove('pinned'); }
   }
 
   var HELP = {
@@ -392,7 +394,7 @@
 
   function showHelp(button, ev) {
     var r = button.getBoundingClientRect();
-    showTip('<b>' + esc(button.getAttribute('aria-label').replace('の計測方法と補足', '')) + '</b><span class="r">' +
+    showTip('<button class="tip-close" type="button" data-close-tip aria-label="補足を閉じる">×</button><b>' + esc(button.getAttribute('aria-label').replace('の計測方法と補足', '')) + '</b><span class="r">' +
       esc(button.getAttribute('data-help')) + '</span>', ev && ev.clientX ? ev : { clientX: r.left, clientY: r.top });
   }
 
@@ -1199,9 +1201,9 @@
     if (weak[0]) avoidItems.push('要因確認：「' + weak[0].title + '」は前期間差' + nf(weak[0].viewDiff) + '視聴（' + pct(weak[0].viewRate * 100, 1) + '）。同じ企画を止める前に、公開時期・タイトル・冒頭・尺を切り分けます。');
     if (lowestTopic) avoidItems.push('再設計仮説：「' + lowestTopic.topic + ' × ' + lowestTopic.lengthBand + '」は対象' + nf(lowestTopic.videos) + '本の中央値が' + nf(Math.round(lowestTopic.medianViews)) + '視聴。次回は訴求を変え、同条件で再測定します。');
     avoidItems.push('問い合わせ未帰属だけで企画を廃止しません。現在の概要欄遷移は' + nf(ga.ok ? (ga.body.youtubeSummary || {}).sessions : 0) + 'セッションのため、まず計測母数を増やします。');
-    host.appendChild(el('<div class="recommend-grid"><div class="recommend-block good"><h3>次に検証する企画仮説</h3><ul>' +
+    host.appendChild(el('<div class="recommend-grid"><div class="recommend-block good"><h3>次に検証する企画仮説' + helpIcon('改善提案サマリー') + '</h3><ul>' +
       goodItems.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
-      '<div class="recommend-block caution"><h3>再設計して検証する企画</h3><ul>' +
+      '<div class="recommend-block caution"><h3>再設計して検証する企画' + helpIcon('再設計候補') + '</h3><ul>' +
       avoidItems.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div></div>'));
 
     function analysisTable(title, note, data) {
@@ -1217,7 +1219,10 @@
       ];
       var table = data.length ? sortableTable(cols, data, { defaultSort: title.indexOf('再設計') >= 0 ? 'viewDiff' : 'views' }) : el('<p class="note">該当データなし</p>');
       if (data.length) table.classList.add('ideas-table');
-      host.appendChild(card(title, note, table));
+      var content = el('<div></div>');
+      if (data.length) content.appendChild(el('<p class="ideas-scroll-hint" aria-hidden="true">表は横にスクロールできます →</p>'));
+      content.appendChild(table);
+      host.appendChild(card(title, note, content));
     }
     analysisTable('既存動画の伸長候補', '両期間の上位200本に入り、今期間500視聴以上、かつ20%以上・100視聴以上増えた動画。初期表示は今期間視聴順です。', strong);
     analysisTable('新規動画の初動候補', '今期間に公開され1,000視聴以上の動画。既存動画の前期間比とは分けて確認します。', newHits);
@@ -1457,17 +1462,24 @@
     if (e.target.closest && e.target.closest('.help') !== pinnedHelp) hideTip();
   });
   document.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('[data-close-tip]')) { hideTip(true); return; }
     var button = e.target.closest && e.target.closest('.help');
     if (button) {
       e.preventDefault(); e.stopPropagation();
       pinnedHelp = pinnedHelp === button ? null : button;
-      if (pinnedHelp) showHelp(button, e); else hideTip(true);
+      if (pinnedHelp) { tip.classList.add('pinned'); showHelp(button, e); } else hideTip(true);
     } else hideTip(true);
   }, true);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideTip(true); });
 
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
     t.addEventListener('click', function () { selectTab(t.dataset.tab, true); });
+    t.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+      var next = (tabs.indexOf(t) + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      e.preventDefault(); tabs[next].focus(); tabs[next].click();
+    });
   });
   Array.prototype.forEach.call(document.querySelectorAll('[data-open-tab]'), function (b) {
     b.addEventListener('click', function () {

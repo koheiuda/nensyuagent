@@ -213,18 +213,28 @@ module.exports = async (req, res) => {
       dateRanges: previousDateRanges, dimensions: [{ name: 'sessionManualCampaignId' }], metrics: [{ name: 'eventCount' }],
       dimensionFilter: youtubeInquiryFilter, limit: 200,
     });
-    const inquiriesById = {};
-    const previousSessionsById = {}, previousInquiriesById = {};
-    toRows(byVideoInquiries).forEach(function (row) { inquiriesById[row.sessionManualCampaignId] = row.eventCount; });
-    toRows(previousByVideoSessions).forEach(function (row) { previousSessionsById[row.sessionManualCampaignId] = row.sessions; });
-    toRows(previousByVideoInquiries).forEach(function (row) { previousInquiriesById[row.sessionManualCampaignId] = row.eventCount; });
-    const byVideo = toRows(byVideoSessions).map(function (row) {
-      row.inquiries = inquiriesById[row.sessionManualCampaignId] || 0;
-      row.sessionInquiryRate = row.sessions ? row.inquiries / row.sessions : 0;
-      row.previousSessions = previousSessionsById[row.sessionManualCampaignId] || 0;
-      row.previousInquiries = previousInquiriesById[row.sessionManualCampaignId] || 0;
-      return row;
+    const sessionsById = {}, usersById = {}, inquiriesById = {};
+    const previousSessionsById = {}, previousUsersById = {}, previousInquiriesById = {};
+    toRows(byVideoSessions).forEach(function (row) {
+      sessionsById[row.sessionManualCampaignId] = row.sessions;
+      usersById[row.sessionManualCampaignId] = row.activeUsers;
     });
+    toRows(byVideoInquiries).forEach(function (row) { inquiriesById[row.sessionManualCampaignId] = row.eventCount; });
+    toRows(previousByVideoSessions).forEach(function (row) {
+      previousSessionsById[row.sessionManualCampaignId] = row.sessions;
+      previousUsersById[row.sessionManualCampaignId] = row.activeUsers;
+    });
+    toRows(previousByVideoInquiries).forEach(function (row) { previousInquiriesById[row.sessionManualCampaignId] = row.eventCount; });
+    const allVideoIds = Array.from(new Set(Object.keys(sessionsById).concat(Object.keys(inquiriesById), Object.keys(previousSessionsById), Object.keys(previousInquiriesById))));
+    const byVideo = allVideoIds.map(function (id) {
+      const row = { sessionManualCampaignId: id, sessions: sessionsById[id] || 0, activeUsers: usersById[id] || 0 };
+      row.inquiries = inquiriesById[id] || 0;
+      row.sessionInquiryRate = row.sessions ? row.inquiries / row.sessions : 0;
+      row.previousSessions = previousSessionsById[id] || 0;
+      row.previousActiveUsers = previousUsersById[id] || 0;
+      row.previousInquiries = previousInquiriesById[id] || 0;
+      return row;
+    }).sort(function (a, b) { return b.sessions - a.sessions || b.previousSessions - a.previousSessions; });
     const utmCoverage = byVideo.reduce(function (out, row) {
       const valid = /^[A-Za-z0-9_-]{11}$/.test(row.sessionManualCampaignId || '');
       out.totalSessions += row.sessions || 0;
