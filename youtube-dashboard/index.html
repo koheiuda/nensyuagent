@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <title>年収エージェント アナリティクス</title>
 <style>
   :root {
@@ -245,7 +246,7 @@
       </button>
       <button class="card overview-card" type="button" data-open-tab="ga">
         <span class="arrow">→</span><h2>サイト送客・CV</h2>
-        <p class="note">YouTube経由のセッション、遷移先ページ、コンバージョンを確認します。</p>
+        <p class="note">YouTube概要欄からの遷移、問い合わせ完了、動画別の送客成果を確認します。</p>
       </button>
     </div>
     <div id="overview-data" class="overview-data"></div>
@@ -291,10 +292,10 @@
     'セッション': 'GA4のsessionsです。/nensyuagent本体と配下で開始・継続したセッションを選択期間で集計します。',
     'ユーザー': 'GA4のactiveUsersを期間全体で取得した重複除外値です。日別ユーザー数の合計ではありません。',
     'ページビュー': 'GA4のscreenPageViewsです。/nensyuagent本体と配下のページ表示回数を合計します。',
-    'キーイベント数': 'GA4でキーイベントに指定されたイベントの発生回数です。ユーザー数や成約件数とは限りません。',
-    'YouTube経由 セッション': 'sessionSourceにyoutubeまたはyoutu.beを含み、/nensyuagent本体・配下へ到達したGA4セッション数です。',
-    'YouTube経由 キーイベント': 'YouTube経由セッションのうち、対象パス上で発生したGA4キーイベントの回数です。後続の別ページで発生した成果は含まれません。',
-    'YouTube経由 セッションキーイベント率': 'GA4のsessionKeyEventRateです。YouTube経由セッションのうち、1件以上のキーイベントが発生したセッションの割合です。',
+    '問い合わせ完了': 'GA4のeventNameが「CV_求職者all」と完全一致するプロパティ全体のeventCountです。このイベント名自体が年収エージェントの求職者CVを識別します。',
+    'YouTube概要欄 遷移セッション': 'GA4のsessionManualAdContentが「agent-ch_desc」と完全一致し、/nensyuagent/へ到達したセッションです。',
+    'YouTube概要欄 問い合わせ完了': 'sessionManualAdContentが「agent-ch_desc」のセッションに帰属する「CV_求職者all」のイベント数です。',
+    'YouTube概要欄 問い合わせ率': 'YouTube概要欄経由の問い合わせ完了イベント数÷概要欄遷移セッション数です。同一人物の重複イベントを除く成約率ではありません。',
     'セッションキーイベント率': 'GA4のsessionKeyEventRateです。キーイベント数÷セッション数ではなく、キーイベントが発生したセッションの割合です。',
     '視聴回数の推移': 'YouTube Analytics APIの日別viewsです。45日を超える場合は読みやすさのため7日単位で合計します。',
     'トラフィックソース': 'YouTube Analytics APIのinsightTrafficSourceType別viewsです。検索・関連動画・ショートフィードなど発見経路を示します。',
@@ -304,7 +305,8 @@
     '伸びた動画 トップ3': '選択期間のYouTube Analytics viewsが多い3動画です。動画の公開時期が異なるため初速比較ではありません。',
     '今やること': '前期間比、サイト送客率、登録者獲得効率からルールベースで生成した確認候補です。因果関係を断定するものではありません。',
     'セッションの推移': 'GA4のsessionsを日別表示します。45日を超える場合は7日単位で合計します。',
-    'YouTube経由 セッションの推移': 'sessionSourceがyoutubeまたはyoutu.beのGA4セッションを日別表示します。',
+    'YouTube概要欄 遷移の推移': 'sessionManualAdContentが「agent-ch_desc」のGA4セッションを日別表示します。',
+    '動画別 サイト送客・問い合わせ': 'utm_idを格納するsessionManualCampaignIdを動画IDとして集計します。UTM未設定の過去データは動画へ帰属できません。',
     '参照元／メディア別 セッション': 'GA4のsessionSourceMedium別セッション上位25件です。',
     'ページ別': '対象パス内のGA4ページ別集計です。セッション・ユーザーは各ページ行の値で、行同士を単純合算すると重複する場合があります。',
     '動画': 'YouTube動画のタイトルです。クリックすると該当動画を別タブで開きます。',
@@ -778,27 +780,29 @@
 
     setStatus('ga', '接続済み', 'ok');
 
-    var d = r.body, cvKey = d.conversionMetric, ytCvKey = d.youtubeConversionMetric;
+    var d = r.body;
     var s = d.summary || {}, ps = d.previousSummary || {};
     var ys = d.youtubeSummary || {}, pys = d.previousYoutubeSummary || {};
+    var inquiry = d.inquirySummary || {}, previousInquiry = d.previousInquirySummary || {};
+    var ytInquiry = d.youtubeInquirySummary || {}, previousYtInquiry = d.previousYoutubeInquirySummary || {};
     var totalSessions = Number(s.sessions) || 0;
     var totalUsers = Number(s.activeUsers) || 0;
     var totalViews = Number(s.screenPageViews) || 0;
-    var totalCv = cvKey ? Number(s[cvKey]) || 0 : null;
     var ytSessions = Number(ys.sessions) || 0;
-    var ytCv = ytCvKey ? Number(ys[ytCvKey]) || 0 : null;
-    var ytSessionKeyEventRate = Number(ys.sessionKeyEventRate) || 0;
+    var inquiryCount = Number(inquiry.eventCount) || 0;
+    var ytInquiryCount = Number(ytInquiry.eventCount) || 0;
+    var ytInquiryRate = ytSessions ? ytInquiryCount / ytSessions : 0;
 
     host.appendChild(tiles([
       ['セッション', compact(totalSessions), d.period.startDate + ' 〜 ' + d.period.endDate, delta(totalSessions, ps.sessions)],
       ['ユーザー', compact(totalUsers), '期間内アクティブユーザー（重複除外）', delta(totalUsers, ps.activeUsers)],
       ['ページビュー', compact(totalViews), '', delta(totalViews, ps.screenPageViews)],
-      cvKey ? ['キーイベント数', nf(totalCv), 'GA4指標: ' + cvKey, delta(totalCv, ps[cvKey])] : ['キーイベント数', '要設定', 'GA4でキーイベント未定義'],
-      ['YouTube経由 セッション', nf(ytSessions),
-        totalSessions ? '全体の ' + pct(ytSessions / totalSessions * 100, 1) : '', delta(ytSessions, pys.sessions)],
-      ytCvKey ? ['YouTube経由 キーイベント', nf(ytCv), '対象パス上で発生', delta(ytCv, pys[ytCvKey])] : null,
-      ['YouTube経由 セッションキーイベント率', pct(ytSessionKeyEventRate * 100, 2),
-        'キーイベントが発生したセッションの割合', delta(ytSessionKeyEventRate, pys.sessionKeyEventRate)]
+      ['問い合わせ完了', nf(inquiryCount), 'event: ' + d.inquiryEventName, delta(inquiryCount, previousInquiry.eventCount)],
+      ['YouTube概要欄 遷移セッション', nf(ytSessions),
+        'utm_content: ' + d.youtubeDescriptionContent, delta(ytSessions, pys.sessions)],
+      ['YouTube概要欄 問い合わせ完了', nf(ytInquiryCount), d.inquiryEventName, delta(ytInquiryCount, previousYtInquiry.eventCount)],
+      ['YouTube概要欄 問い合わせ率', pct(ytInquiryRate * 100, 2),
+        '問い合わせ完了 ÷ 遷移セッション']
     ].filter(Boolean)));
 
     if (d.daily.length) {
@@ -808,13 +812,41 @@
     }
 
     if (d.youtubeDaily.length) {
-      host.appendChild(card('YouTube経由 セッションの推移',
-        '参照元に youtube を含むセッション。動画の効果はここで評価します。',
+      host.appendChild(card('YouTube概要欄 遷移の推移',
+        'sessionManualAdContent = ' + d.youtubeDescriptionContent + ' のセッション。',
         columnChart(dailyPoints(d.youtubeDaily, 'date', 'sessions', 'セッション'), { variant: 'alt' })));
     } else {
-      host.appendChild(card('YouTube経由 セッションの推移',
-        '期間内に YouTube 経由のセッションが記録されていません。概要欄・終了画面のUTM整備が先です。',
+      host.appendChild(card('YouTube概要欄 遷移の推移',
+        '期間内に agent-ch_desc のセッションが記録されていません。UTM設定を確認してください。',
         el('<p class="note">データなし</p>')));
+      host.appendChild(setupCard('新UTMの計測待ち',
+        '合意済みの utm_content「' + d.youtubeDescriptionContent + '」は選択期間内にまだありません。旧形式のYouTube流入とは分けて扱っています。', [
+          '今後の概要欄URLを <code>utm_source=youtube</code> / <code>utm_medium=video</code> / <code>utm_content=agent-ch_desc</code> に統一',
+          '動画ごとの <code>utm_id</code> には11文字のYouTube動画IDを設定',
+          'クリック後、GA4反映を待って再読み込み'
+        ]));
+    }
+
+    if ((d.byVideo || []).length) {
+      var names = {};
+      var anaMeta = dashboardState.ana && dashboardState.ana.ok ? dashboardState.ana.body.videoMetadata || [] : [];
+      var publicVideos = dashboardState.pub && dashboardState.pub.ok ? dashboardState.pub.body.videos || [] : [];
+      publicVideos.forEach(function (v) { names[v.id] = v.title; });
+      anaMeta.forEach(function (v) { names[v.id] = v.title; });
+      var vcols = [
+        { key: 'sessionManualCampaignId', head: '動画', render: function (x) {
+          var id = x.sessionManualCampaignId, valid = /^[A-Za-z0-9_-]{11}$/.test(id);
+          if (!valid) return '<span class="note">UTM動画IDなし（' + esc(id || 'not set') + '）</span>';
+          return '<a href="https://www.youtube.com/watch?v=' + esc(id) + '" target="_blank" rel="noopener">' + esc(names[id] || id) + '</a>';
+        } },
+        { key: 'sessions', head: '概要欄遷移', num: true, render: function (x) { return esc(nf(x.sessions)); } },
+        { key: 'activeUsers', head: 'ユーザー', num: true, render: function (x) { return esc(nf(x.activeUsers)); } },
+        { key: 'inquiries', head: '問い合わせ完了', num: true, render: function (x) { return esc(nf(x.inquiries)); } },
+        { key: 'sessionInquiryRate', head: '問い合わせ率', num: true, render: function (x) { return esc(pct(x.sessionInquiryRate * 100, 2)); } }
+      ];
+      host.appendChild(card('動画別 サイト送客・問い合わせ',
+        'utm_content=' + d.youtubeDescriptionContent + '、utm_id=YouTube動画IDのデータを集計します。UTM未設定分は動画へ帰属できません。',
+        sortableTable(vcols, d.byVideo, { defaultSort: 'sessions' })));
     }
 
     if (d.bySourceMedium.length) {
@@ -856,11 +888,12 @@
     }
     if (ga.ok) {
       var gs = ga.body.youtubeSummary || {}, gp = ga.body.previousYoutubeSummary || {};
-      list.push(['YouTube経由 セッション', nf(gs.sessions), '年収エージェントへの送客', delta(gs.sessions, gp.sessions)]);
-      if (ga.body.youtubeConversionMetric) list.push(['YouTube経由 キーイベント', nf(gs[ga.body.youtubeConversionMetric]),
-        '対象パス上で発生', delta(gs[ga.body.youtubeConversionMetric], gp[ga.body.youtubeConversionMetric])]);
-      list.push(['セッションキーイベント率', pct((Number(gs.sessionKeyEventRate) || 0) * 100, 2),
-        'YouTube経由', delta(gs.sessionKeyEventRate, gp.sessionKeyEventRate)]);
+      var gi = ga.body.youtubeInquirySummary || {}, gip = ga.body.previousYoutubeInquirySummary || {};
+      var gSessions = Number(gs.sessions) || 0, gInquiries = Number(gi.eventCount) || 0;
+      list.push(['YouTube概要欄 遷移セッション', nf(gSessions), 'utm_content: ' + ga.body.youtubeDescriptionContent, delta(gSessions, gp.sessions)]);
+      list.push(['YouTube概要欄 問い合わせ完了', nf(gInquiries), ga.body.inquiryEventName, delta(gInquiries, gip.eventCount)]);
+      list.push(['YouTube概要欄 問い合わせ率', pct((gSessions ? gInquiries / gSessions : 0) * 100, 2),
+        '問い合わせ完了 ÷ 遷移セッション']);
     }
     host.appendChild(tiles(list));
 
@@ -882,8 +915,8 @@
         var ytSessions = Number((ga.body.youtubeSummary || {}).sessions) || 0;
         var views = Number(currentSummary.views) || 0;
         actions.push(views && ytSessions / views < 0.001
-          ? '視聴に対してサイト送客が少ないため、概要欄・固定コメント・終了画面のCTAとUTMを確認します。'
-          : 'YouTube経由セッションの遷移先ページを確認し、反応のよいCTAを他動画へ横展開します。');
+          ? '視聴に対して概要欄遷移が少ないため、CTAとutm_content=agent-ch_descの設定を確認します。'
+          : '動画別の概要欄遷移と問い合わせを確認し、反応のよいCTAを他動画へ横展開します。');
       }
       var best = ana.body.reports.video.filter(function (v) { return Number(v.views) >= 100; })
         .sort(function (a, b) { return (Number(b.subscribersGained) / Number(b.views)) - (Number(a.subscribersGained) / Number(a.views)); })[0];

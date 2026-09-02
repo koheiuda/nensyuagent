@@ -7,6 +7,8 @@ const { requireAuth } = require('./_auth.js');
 const SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
 const BASE = 'https://analyticsdata.googleapis.com/v1beta';
 const PATH_PREFIX = '/nensyuagent/';
+const INQUIRY_EVENT = 'CV_求職者all';
+const YOUTUBE_DESCRIPTION_CONTENT = 'agent-ch_desc';
 
 function send(res, status, body) {
   res.statusCode = status;
@@ -25,13 +27,12 @@ function andFilter(filters) {
   return { andGroup: { expressions: filters } };
 }
 
-function youtubeFilter() {
-  return {
-    orGroup: { expressions: [
-      { filter: { fieldName: 'sessionSource', stringFilter: { matchType: 'CONTAINS', value: 'youtube', caseSensitive: false } } },
-      { filter: { fieldName: 'sessionSource', stringFilter: { matchType: 'CONTAINS', value: 'youtu.be', caseSensitive: false } } },
-    ] },
-  };
+function exactFilter(fieldName, value) {
+  return { filter: { fieldName, stringFilter: { matchType: 'EXACT', value, caseSensitive: true } } };
+}
+
+function youtubeDescriptionFilter() {
+  return exactFilter('sessionManualAdContent', YOUTUBE_DESCRIPTION_CONTENT);
 }
 
 function isoDaysAgo(days) {
@@ -129,12 +130,12 @@ module.exports = async (req, res) => {
       limit: 50,
     });
 
-    // 4) YouTube経由だけを分離（送客の評価はここで行う）
+    // 4) 年収エージェントchの概要欄UTMだけを分離（共有されたGA4計測定義）
     const youtube = await runWithKeyEvents(propertyId, token, {
       dateRanges,
       dimensions: [{ name: 'date' }],
       metrics: summaryMetrics,
-      dimensionFilter: andFilter([pathFilter(), youtubeFilter()]),
+      dimensionFilter: youtubeDescriptionFilter(),
       orderBys: [{ dimension: { dimensionName: 'date' } }],
       limit: 400,
     });
@@ -151,7 +152,7 @@ module.exports = async (req, res) => {
       dateRanges,
       dimensions: [],
       metrics: summaryMetrics,
-      dimensionFilter: andFilter([pathFilter(), youtubeFilter()]),
+      dimensionFilter: youtubeDescriptionFilter(),
       limit: 1,
     });
     const previousSummary = await runWithKeyEvents(propertyId, token, {
@@ -165,8 +166,43 @@ module.exports = async (req, res) => {
       dateRanges: previousDateRanges,
       dimensions: [],
       metrics: summaryMetrics,
-      dimensionFilter: andFilter([pathFilter(), youtubeFilter()]),
+      dimensionFilter: youtubeDescriptionFilter(),
       limit: 1,
+    });
+
+    // 問い合わせ完了はイベント名を固定し、GA4の「キーイベント全体」と混同しない。
+    const inquiryBase = {
+      dimensions: [], metrics: [{ name: 'eventCount' }],
+      dimensionFilter: exactFilter('eventName', INQUIRY_EVENT), limit: 1,
+    };
+    const inquirySummary = await runReport(propertyId, token, Object.assign({ dateRanges }, inquiryBase));
+    const previousInquirySummary = await runReport(propertyId, token, Object.assign({ dateRanges: previousDateRanges }, inquiryBase));
+    const youtubeInquiryFilter = andFilter([youtubeDescriptionFilter(), exactFilter('eventName', INQUIRY_EVENT)]);
+    const youtubeInquirySummary = await runReport(propertyId, token, {
+      dateRanges, dimensions: [], metrics: [{ name: 'eventCount' }], dimensionFilter: youtubeInquiryFilter, limit: 1,
+    });
+    const previousYoutubeInquirySummary = await runReport(propertyId, token, {
+      dateRanges: previousDateRanges, dimensions: [], metrics: [{ name: 'eventCount' }], dimensionFilter: youtubeInquiryFilter, limit: 1,
+    });
+
+    // utm_id（sessionManualCampaignId）をYouTube動画IDとして、動画別の概要欄送客を取得する。
+    const byVideoSessions = await runReport(propertyId, token, {
+      dateRanges, dimensions: [{ name: 'sessionManualCampaignId' }],
+      metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+      dimensionFilter: youtubeDescriptionFilter(),
+      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 200,
+    });
+    const byVideoInquiries = await runReport(propertyId, token, {
+      dateRanges, dimensions: [{ name: 'sessionManualCampaignId' }], metrics: [{ name: 'eventCount' }],
+      dimensionFilter: youtubeInquiryFilter,
+      orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }], limit: 200,
+    });
+    const inquiriesById = {};
+    toRows(byVideoInquiries).forEach(function (row) { inquiriesById[row.sessionManualCampaignId] = row.eventCount; });
+    const byVideo = toRows(byVideoSessions).map(function (row) {
+      row.inquiries = inquiriesById[row.sessionManualCampaignId] || 0;
+      row.sessionInquiryRate = row.sessions ? row.inquiries / row.sessions : 0;
+      return row;
     });
 
     return send(res, 200, {
@@ -176,10 +212,16 @@ module.exports = async (req, res) => {
       days,
       conversionMetric: daily.conversionMetric,
       youtubeConversionMetric: youtube.conversionMetric,
+      inquiryEventName: INQUIRY_EVENT,
+      youtubeDescriptionContent: YOUTUBE_DESCRIPTION_CONTENT,
       summary: toRows(summary.report)[0] || {},
       youtubeSummary: toRows(youtubeSummary.report)[0] || {},
       previousSummary: toRows(previousSummary.report)[0] || {},
       previousYoutubeSummary: toRows(previousYoutubeSummary.report)[0] || {},
+      inquirySummary: toRows(inquirySummary)[0] || {},
+      previousInquirySummary: toRows(previousInquirySummary)[0] || {},
+      youtubeInquirySummary: toRows(youtubeInquirySummary)[0] || {},
+      previousYoutubeInquirySummary: toRows(previousYoutubeInquirySummary)[0] || {},
       period: {
         startDate: isoDaysAgo(days - 1), endDate: isoDaysAgo(0),
         previousStartDate: isoDaysAgo(days * 2 - 1), previousEndDate: isoDaysAgo(days), days,
@@ -188,6 +230,7 @@ module.exports = async (req, res) => {
       bySourceMedium: toRows(bySource),
       byPage: toRows(byPage),
       youtubeDaily: toRows(youtube.report),
+      byVideo,
     });
   } catch (e) {
     const status = e.status === 403 ? 403 : e.status === 401 ? 401 : 502;
