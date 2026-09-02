@@ -190,6 +190,9 @@
   .diagnosis { border-left: 4px solid var(--series-1); padding: 13px 15px; background: rgba(42,120,214,.06); border-radius: 8px; margin: 12px 0; }
   .diagnosis strong { display: block; margin-bottom: 4px; }
   .measurement-note { display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: 10px; color: var(--muted); font-size: 11px; }
+  .mom { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; white-space: nowrap; }
+  .mom.up { color: var(--ok); }
+  .mom.down { color: var(--danger); }
   @media (max-width: 720px) {
     .funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .analysis-controls label { flex: 1 1 130px; }
@@ -405,12 +408,21 @@
     return host;
   }
 
-  function delta(current, previous) {
+  function delta(current, previous, comparisonLabel) {
     current = Number(current) || 0; previous = Number(previous) || 0;
-    if (!previous) return { label: current ? '前期間データなし' : '前期間比 0.0%', state: '' };
+    comparisonLabel = comparisonLabel || '前期間比';
+    if (!previous) return { label: current ? comparisonLabel.replace('比', '') + 'データなし' : comparisonLabel + ' 0.0%', state: '' };
     var rate = (current - previous) / previous * 100;
-    return { label: (rate >= 0 ? '↑ ' : '↓ ') + Math.abs(rate).toFixed(1) + '% 前期間比',
+    return { label: (rate >= 0 ? '↑ ' : '↓ ') + Math.abs(rate).toFixed(1) + '% ' + comparisonLabel,
       state: rate > 0 ? 'up' : rate < 0 ? 'down' : '' };
+  }
+
+  function mom(current, previous, partial) {
+    current = Number(current) || 0; previous = Number(previous) || 0;
+    if (!previous) return '<span class="mom">前月データなし</span>';
+    var rate = (current - previous) / Math.abs(previous) * 100;
+    return '<span class="mom ' + (rate > 0 ? 'up' : rate < 0 ? 'down' : '') + '">' +
+      (rate >= 0 ? '↑ ' : '↓ ') + Math.abs(rate).toFixed(1) + '% 前月比' + (partial ? '（途中）' : '') + '</span>';
   }
 
   function barChart(rows, opts) {
@@ -689,7 +701,8 @@
     if (daily.length) host.appendChild(card('期間別パフォーマンス',
       '日次・暦週（月曜〜日曜）・暦月で切替。最新' + (ana.ok && ana.body.lagDays ? ana.body.lagDays : 3) +
       '日は未確定のため含めません。維持率は視聴回数加重の参考値です。',
-      timeAnalysis(daily, days <= 28 ? 'day' : days <= 180 ? 'week' : 'month')));
+      timeAnalysis(daily, days <= 28 ? 'day' : days <= 180 ? 'week' : 'month',
+        dashboardState.monthlyAna && dashboardState.monthlyAna.ok ? dashboardState.monthlyAna.body.reports.daily || [] : [])));
 
     if (A && A.trafficSource && A.trafficSource.length) {
       var LABELS = {
@@ -812,22 +825,29 @@
     return el('<div>' + html + '</div>');
   }
 
-  function conversionTrendNode(d, ana) {
+  function conversionTrendNode(d, ana, monthlyGa, monthlyAna) {
     var host = el('<div></div>');
     var controls = el('<div class="analysis-controls"><label>集計単位<select><option value="week">週次</option><option value="month">月次</option></select></label></div>');
     var body = el('<div></div>');
     function draw() {
       var unit = controls.querySelector('select').value;
-      var rows = conversionBuckets(ana.body.reports.daily || [], d.youtubeDaily || [], d.youtubeInquiryDaily || [], unit,
-        ana.body.period.startDate, ana.body.period.endDate);
+      var sourceGa = unit === 'month' && monthlyGa && monthlyGa.ok ? monthlyGa.body : d;
+      var sourceAna = unit === 'month' && monthlyAna && monthlyAna.ok ? monthlyAna : ana;
+      var allRows = conversionBuckets(sourceAna.body.reports.daily || [], sourceGa.youtubeDaily || [], sourceGa.youtubeInquiryDaily || [], unit,
+        sourceAna.body.period.startDate, sourceAna.body.period.endDate);
+      allRows.forEach(function (x, i) { x.previous = i ? allRows[i - 1] : null; });
+      var rows = unit === 'month' ? allRows.slice(-6) : allRows;
+      function valueWithMom(x, key, formatted) {
+        return esc(formatted) + (unit === 'month' && x.previous ? mom(x[key], x.previous[key], x.partial) : '');
+      }
       var cols = [
         { key: 'period', head: '集計期間', render: function (x) { return esc(x.start + ' 〜 ' + x.end) + (x.partial ? '<span class="partial">集計途中</span>' : ''); } },
-        { key: 'views', head: '視聴回数', num: true, render: function (x) { return esc(nf(x.views)); } },
-        { key: 'sessions', head: '概要欄遷移', num: true, render: function (x) { return esc(nf(x.sessions)); } },
-        { key: 'sessionPerK', head: '送客 / 1,000視聴', num: true, render: function (x) { return esc(nf(x.sessionPerK)); } },
-        { key: 'inquiries', head: '問い合わせ完了', num: true, render: function (x) { return esc(nf(x.inquiries)); } },
-        { key: 'inquiryRate', head: '問い合わせ率', num: true, render: function (x) { return esc(pct(x.inquiryRate * 100, 2)); } },
-        { key: 'inquiryPerK', head: '問い合わせ / 1,000視聴', num: true, render: function (x) { return esc(nf(x.inquiryPerK)); } }
+        { key: 'views', head: '視聴回数', num: true, render: function (x) { return valueWithMom(x, 'views', nf(x.views)); } },
+        { key: 'sessions', head: '概要欄遷移', num: true, render: function (x) { return valueWithMom(x, 'sessions', nf(x.sessions)); } },
+        { key: 'sessionPerK', head: '送客 / 1,000視聴', num: true, render: function (x) { return valueWithMom(x, 'sessionPerK', nf(x.sessionPerK)); } },
+        { key: 'inquiries', head: '問い合わせ完了', num: true, render: function (x) { return valueWithMom(x, 'inquiries', nf(x.inquiries)); } },
+        { key: 'inquiryRate', head: '問い合わせ率', num: true, render: function (x) { return valueWithMom(x, 'inquiryRate', pct(x.inquiryRate * 100, 2)); } },
+        { key: 'inquiryPerK', head: '問い合わせ / 1,000視聴', num: true, render: function (x) { return valueWithMom(x, 'inquiryPerK', nf(x.inquiryPerK)); } }
       ];
       body.innerHTML = ''; body.appendChild(sortableTable(cols, rows, { defaultSort: 'period' }));
     }
@@ -894,7 +914,8 @@
       }
       host.appendChild(el('<div class="diagnosis"><strong>' + esc(diagnosisTitle) + '</strong>' + esc(diagnosisBody) + '</div>'));
       host.appendChild(card('週次・月次 CV推移',
-        'YouTubeとGA4の共通期間だけを集計。週は月曜〜日曜、月は暦月で、途中期間を明示します。', conversionTrendNode(d, anaState)));
+        'YouTubeとGA4の共通期間だけを集計。月次は直近6か月を表示し、比較可能な数値には前月比を表示します。',
+        conversionTrendNode(d, anaState, dashboardState.monthlyGa, dashboardState.monthlyAna)));
     }
 
     host.appendChild(tiles([
@@ -1001,7 +1022,7 @@
     }
   }
 
-  var dashboardState = { pub: null, ana: null, ga: null };
+  var dashboardState = { pub: null, ana: null, ga: null, monthlyAna: null, monthlyGa: null };
 
   function renderOverview() {
     var host = document.getElementById('overview-data');
@@ -1108,7 +1129,7 @@
     });
   }
 
-  function timeAnalysis(rows, initialUnit) {
+  function timeAnalysis(rows, initialUnit, monthlyRows) {
     var host = el('<div></div>');
     var controls = el('<div class="analysis-controls">' +
       '<label>集計単位<select data-role="unit"><option value="day">日次</option><option value="week">週次</option><option value="month">月次</option></select></label>' +
@@ -1118,7 +1139,9 @@
     function draw() {
       var unit = controls.querySelector('[data-role="unit"]').value;
       var metric = controls.querySelector('[data-role="metric"]').value;
-      var grouped = aggregateRows(rows, unit);
+      var allGrouped = aggregateRows(unit === 'month' && monthlyRows && monthlyRows.length ? monthlyRows : rows, unit);
+      allGrouped.forEach(function (g, i) { g.previous = i ? allGrouped[i - 1] : null; });
+      var grouped = unit === 'month' ? allGrouped.slice(-6) : allGrouped;
       var labels = { views: '視聴回数', watchMin: '総再生時間（分）', netSubs: '登録者純増', retention: '平均視聴維持率（視聴回数加重）' };
       chartHost.innerHTML = '';
       compareHost.innerHTML = '';
@@ -1126,9 +1149,9 @@
       if (unit !== 'day' && complete.length >= 2) {
         var latest = complete[complete.length - 1], previous = complete[complete.length - 2];
         compareHost.appendChild(tiles([
-          ['直近完了' + (unit === 'week' ? '週' : '月') + ' 視聴回数', compact(latest.views), latest.start + ' 〜 ' + latest.end, delta(latest.views, previous.views)],
-          ['直近完了' + (unit === 'week' ? '週' : '月') + ' 総再生時間', watchAmount(latest.watchMin), '前期間と比較', delta(latest.watchMin, previous.watchMin)],
-          ['直近完了' + (unit === 'week' ? '週' : '月') + ' 登録者純増', (latest.netSubs >= 0 ? '+' : '') + nf(latest.netSubs), '前期間 ' + (previous.netSubs >= 0 ? '+' : '') + nf(previous.netSubs), delta(latest.netSubs, previous.netSubs)]
+          ['直近完了' + (unit === 'week' ? '週' : '月') + ' 視聴回数', compact(latest.views), latest.start + ' 〜 ' + latest.end, delta(latest.views, previous.views, unit === 'month' ? '前月比' : '前期間比')],
+          ['直近完了' + (unit === 'week' ? '週' : '月') + ' 総再生時間', watchAmount(latest.watchMin), unit === 'month' ? '前月と比較' : '前期間と比較', delta(latest.watchMin, previous.watchMin, unit === 'month' ? '前月比' : '前期間比')],
+          ['直近完了' + (unit === 'week' ? '週' : '月') + ' 登録者純増', (latest.netSubs >= 0 ? '+' : '') + nf(latest.netSubs), (unit === 'month' ? '前月 ' : '前期間 ') + (previous.netSubs >= 0 ? '+' : '') + nf(previous.netSubs), delta(latest.netSubs, previous.netSubs, unit === 'month' ? '前月比' : '前期間比')]
         ]));
       }
       chartHost.appendChild(columnChart(grouped.map(function (g) {
@@ -1139,10 +1162,10 @@
       }), { axisFormat: metric === 'retention' ? function (v) { return pct(v, 0); } : compact }));
       var cols = [
         { key: 'period', head: '集計期間', render: function (g) { return esc(unit === 'day' ? g.start : g.start + ' 〜 ' + g.end) + (g.partial ? '<span class="partial">集計途中</span>' : ''); } },
-        { key: 'views', head: '視聴回数', num: true, render: function (g) { return esc(nf(g.views)); } },
-        { key: 'watchMin', head: '総再生時間', num: true, render: function (g) { return esc(watchAmount(g.watchMin)); } },
-        { key: 'retention', head: '維持率', num: true, render: function (g) { return esc(pct(g.retention, 1)); } },
-        { key: 'netSubs', head: '登録者純増', num: true, render: function (g) { return esc((g.netSubs >= 0 ? '+' : '') + nf(g.netSubs)); } }
+        { key: 'views', head: '視聴回数', num: true, render: function (g) { return esc(nf(g.views)) + (unit === 'month' && g.previous ? mom(g.views, g.previous.views, g.partial) : ''); } },
+        { key: 'watchMin', head: '総再生時間', num: true, render: function (g) { return esc(watchAmount(g.watchMin)) + (unit === 'month' && g.previous ? mom(g.watchMin, g.previous.watchMin, g.partial) : ''); } },
+        { key: 'retention', head: '維持率', num: true, render: function (g) { return esc(pct(g.retention, 1)) + (unit === 'month' && g.previous ? mom(g.retention, g.previous.retention, g.partial) : ''); } },
+        { key: 'netSubs', head: '登録者純増', num: true, render: function (g) { return esc((g.netSubs >= 0 ? '+' : '') + nf(g.netSubs)) + (unit === 'month' && g.previous ? mom(g.netSubs, g.previous.netSubs, g.partial) : ''); } }
       ];
       tableHost.innerHTML = ''; tableHost.appendChild(sortableTable(cols, grouped, { defaultSort: 'period' }));
     }
@@ -1175,6 +1198,17 @@
     getJSON('/api/ga4?days=' + days).catch(softFail).then(function (r) {
       dashboardState.ga = r; renderGA4(r); renderOverview();
     });
+
+    if (!dashboardState.monthlyAna || !dashboardState.monthlyGa) {
+      Promise.all([
+        getJSON('/api/youtube-analytics?days=210').catch(softFail),
+        getJSON('/api/ga4?days=210').catch(softFail)
+      ]).then(function (res) {
+        dashboardState.monthlyAna = res[0]; dashboardState.monthlyGa = res[1];
+        if (dashboardState.pub && dashboardState.ana) renderYouTube(dashboardState.pub, dashboardState.ana);
+        if (dashboardState.ga) renderGA4(dashboardState.ga);
+      });
+    }
   }
 
   function selectTab(name, updateHash) {
