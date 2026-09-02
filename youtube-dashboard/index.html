@@ -181,7 +181,22 @@
   .section-title { margin: 22px 0 10px; font-size: 16px; letter-spacing: -.01em; }
   .actions { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
   .actions li { padding: 10px 12px; border-left: 3px solid var(--series-1); background: var(--track); border-radius: 0 8px 8px 0; }
+  .funnel { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+  .funnel-step { position: relative; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); }
+  .funnel-step:not(:last-child)::after { content: '→'; position: absolute; right: -10px; top: 42%; z-index: 2; color: var(--series-1); font-weight: 800; }
+  .funnel-step .stage { color: var(--muted); font-size: 11px; font-weight: 700; }
+  .funnel-step .value { margin: 5px 0; font-size: 24px; font-weight: 780; font-variant-numeric: tabular-nums; }
+  .funnel-step .rate { color: var(--text-secondary); font-size: 12px; }
+  .diagnosis { border-left: 4px solid var(--series-1); padding: 13px 15px; background: rgba(42,120,214,.06); border-radius: 8px; margin: 12px 0; }
+  .diagnosis strong { display: block; margin-bottom: 4px; }
+  .measurement-note { display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: 10px; color: var(--muted); font-size: 11px; }
   @media (max-width: 720px) {
+    .funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .analysis-controls label { flex: 1 1 130px; }
+    .analysis-controls select { width: 100%; min-width: 0; }
+    .video-detail-head { align-items: flex-start; }
+    .video-detail-head img { width: 92px; }
+    .funnel-step:not(:last-child)::after { display: none; }
     .app-shell { display: block; }
     .sidebar { position: sticky; top: 0; z-index: 10; width: auto; height: auto; padding: 10px 14px; }
     .brand { display: none; }
@@ -307,6 +322,11 @@
     'セッションの推移': 'GA4のsessionsを日別表示します。45日を超える場合は7日単位で合計します。',
     'YouTube概要欄 遷移の推移': 'sessionManualAdContentが「agent-ch_desc」のGA4セッションを日別表示します。',
     '動画別 サイト送客・問い合わせ': 'utm_idを格納するsessionManualCampaignIdを動画IDとして集計します。UTM未設定の過去データは動画へ帰属できません。',
+    '問い合わせファネル': 'YouTube視聴回数、agent-ch_descのGA4セッション、CV_求職者allを同じ選択期間で並べた参考ファネルです。ユーザー単位で直接結合した値ではありません。',
+    '週次・月次 CV推移': 'YouTubeとGA4の日次データを共通期間で暦週・暦月にまとめます。視聴からセッションへの率はGA4セッション÷YouTube視聴回数の参考値です。',
+    '計測カバレッジ': 'agent-ch_descのセッションのうち、utm_idに有効な11文字のYouTube動画IDが入っている割合です。',
+    '送客 / 1,000視聴': '概要欄遷移セッション÷期間内視聴回数×1,000です。YouTubeのクリック数そのものではありません。',
+    '問い合わせ / 1,000視聴': 'CV_求職者allのイベント数÷期間内視聴回数×1,000です。',
     '参照元／メディア別 セッション': 'GA4のsessionSourceMedium別セッション上位25件です。',
     'ページ別': '対象パス内のGA4ページ別集計です。セッション・ユーザーは各ページ行の値で、行同士を単純合算すると重複する場合があります。',
     '動画': 'YouTube動画のタイトルです。クリックすると該当動画を別タブで開きます。',
@@ -667,7 +687,7 @@
     }
 
     if (daily.length) host.appendChild(card('期間別パフォーマンス',
-      '日次・暦週（月曜〜日曜）・暦月で切替。最新' + (ana.ok && ana.body.lagDays ? ana.body.lagDays : 2) +
+      '日次・暦週（月曜〜日曜）・暦月で切替。最新' + (ana.ok && ana.body.lagDays ? ana.body.lagDays : 3) +
       '日は未確定のため含めません。維持率は視聴回数加重の参考値です。',
       timeAnalysis(daily, days <= 28 ? 'day' : days <= 180 ? 'week' : 'month')));
 
@@ -757,6 +777,63 @@
   }
 
   // =================== GA4 ===================
+  function conversionBuckets(ytRows, sessionRows, inquiryRows, unit, startDate, endDate) {
+    var groups = {};
+    function group(date) {
+      var b = bucketInfo(date, unit);
+      return groups[b.key] || (groups[b.key] = { period: b.key, start: b.start, end: b.end, views: 0, sessions: 0, inquiries: 0 });
+    }
+    (ytRows || []).forEach(function (r) { group(r.day).views += Number(r.views) || 0; });
+    (sessionRows || []).forEach(function (r) {
+      var date = normDate(r.date); if (date >= startDate && date <= endDate) group(date).sessions += Number(r.sessions) || 0;
+    });
+    (inquiryRows || []).forEach(function (r) {
+      var date = normDate(r.date); if (date >= startDate && date <= endDate) group(date).inquiries += Number(r.eventCount) || 0;
+    });
+    return Object.keys(groups).sort().map(function (k) {
+      var g = groups[k];
+      g.sessionPerK = g.views ? g.sessions / g.views * 1000 : 0;
+      g.inquiryRate = g.sessions ? g.inquiries / g.sessions : 0;
+      g.inquiryPerK = g.views ? g.inquiries / g.views * 1000 : 0;
+      g.partial = startDate > g.start || endDate < g.end;
+      return g;
+    });
+  }
+
+  function funnelNode(views, sessions, inquiries, coverage) {
+    var sendRate = views ? sessions / views * 1000 : 0;
+    var inquiryRate = sessions ? inquiries / sessions * 100 : 0;
+    var html = '<div class="funnel">' +
+      '<div class="funnel-step"><div class="stage">1. YouTube視聴</div><div class="value">' + esc(compact(views)) + '</div><div class="rate">選択期間の再生</div></div>' +
+      '<div class="funnel-step"><div class="stage">2. 概要欄から遷移</div><div class="value">' + esc(nf(sessions)) + '</div><div class="rate">1,000視聴あたり ' + esc(nf(sendRate)) + '</div></div>' +
+      '<div class="funnel-step"><div class="stage">3. 問い合わせ完了</div><div class="value">' + esc(nf(inquiries)) + '</div><div class="rate">CV_求職者all</div></div>' +
+      '<div class="funnel-step"><div class="stage">4. セッション→問い合わせ</div><div class="value">' + esc(pct(inquiryRate, 2)) + '</div><div class="rate">イベント数 ÷ セッション</div></div></div>' +
+      '<div class="measurement-note"><span>視聴→遷移は別システム間の参考比率</span><span>UTM動画IDカバレッジ ' + esc(pct((coverage && coverage.rate || 0) * 100, 1)) + '</span><span>CVはイベント数（ユニークリード数ではありません）</span></div>';
+    return el('<div>' + html + '</div>');
+  }
+
+  function conversionTrendNode(d, ana) {
+    var host = el('<div></div>');
+    var controls = el('<div class="analysis-controls"><label>集計単位<select><option value="week">週次</option><option value="month">月次</option></select></label></div>');
+    var body = el('<div></div>');
+    function draw() {
+      var unit = controls.querySelector('select').value;
+      var rows = conversionBuckets(ana.body.reports.daily || [], d.youtubeDaily || [], d.youtubeInquiryDaily || [], unit,
+        ana.body.period.startDate, ana.body.period.endDate);
+      var cols = [
+        { key: 'period', head: '集計期間', render: function (x) { return esc(x.start + ' 〜 ' + x.end) + (x.partial ? '<span class="partial">集計途中</span>' : ''); } },
+        { key: 'views', head: '視聴回数', num: true, render: function (x) { return esc(nf(x.views)); } },
+        { key: 'sessions', head: '概要欄遷移', num: true, render: function (x) { return esc(nf(x.sessions)); } },
+        { key: 'sessionPerK', head: '送客 / 1,000視聴', num: true, render: function (x) { return esc(nf(x.sessionPerK)); } },
+        { key: 'inquiries', head: '問い合わせ完了', num: true, render: function (x) { return esc(nf(x.inquiries)); } },
+        { key: 'inquiryRate', head: '問い合わせ率', num: true, render: function (x) { return esc(pct(x.inquiryRate * 100, 2)); } },
+        { key: 'inquiryPerK', head: '問い合わせ / 1,000視聴', num: true, render: function (x) { return esc(nf(x.inquiryPerK)); } }
+      ];
+      body.innerHTML = ''; body.appendChild(sortableTable(cols, rows, { defaultSort: 'period' }));
+    }
+    controls.addEventListener('change', draw); host.appendChild(controls); host.appendChild(body); draw(); return host;
+  }
+
   function renderGA4(r) {
     var host = document.getElementById('ga-body');
     host.innerHTML = '';
@@ -792,6 +869,33 @@
     var inquiryCount = Number(inquiry.eventCount) || 0;
     var ytInquiryCount = Number(ytInquiry.eventCount) || 0;
     var ytInquiryRate = ytSessions ? ytInquiryCount / ytSessions : 0;
+    var anaState = dashboardState.ana && dashboardState.ana.ok ? dashboardState.ana : null;
+    var ytSummary = anaState ? ((anaState.body.reports.summary || [])[0] || {}) : {};
+    var ytViews = Number(ytSummary.views) || 0;
+
+    if (anaState) {
+      host.appendChild(card('問い合わせファネル',
+        'YouTubeとGA4の共通期間 ' + anaState.body.period.startDate + ' 〜 ' + anaState.body.period.endDate + '。視聴とセッションは個人単位では結合していない参考ファネルです。',
+        funnelNode(ytViews, ytSessions, ytInquiryCount, d.utmCoverage)));
+
+      var sendPerK = ytViews ? ytSessions / ytViews * 1000 : 0;
+      var diagnosisTitle = '', diagnosisBody = '';
+      if (d.utmCoverage && d.utmCoverage.rate < 0.9) {
+        diagnosisTitle = '最優先：動画IDの計測漏れを減らす';
+        diagnosisBody = '概要欄遷移 ' + nf(d.utmCoverage.totalSessions) + '件のうち、動画IDへ帰属できたのは ' +
+          nf(d.utmCoverage.attributedSessions) + '件（' + pct(d.utmCoverage.rate * 100, 1) + '）です。まずutm_idを全動画で統一します。';
+      } else if (ytInquiryCount < 5) {
+        diagnosisTitle = '最大の改善候補：概要欄への送客';
+        diagnosisBody = nf(ytViews) + '視聴に対して概要欄遷移は' + nf(ytSessions) + '件（1,000視聴あたり' +
+          nf(sendPerK) + '件）。問い合わせは' + nf(ytInquiryCount) + '件のため、LPの良し悪しはまだ断定せずCTA改善を優先します。';
+      } else {
+        diagnosisTitle = '最大の改善候補：遷移後の問い合わせ率';
+        diagnosisBody = '概要欄遷移' + nf(ytSessions) + '件に対し問い合わせ' + nf(ytInquiryCount) + '件（' + pct(ytInquiryRate * 100, 2) + '）です。訴求とLPの一致を確認します。';
+      }
+      host.appendChild(el('<div class="diagnosis"><strong>' + esc(diagnosisTitle) + '</strong>' + esc(diagnosisBody) + '</div>'));
+      host.appendChild(card('週次・月次 CV推移',
+        'YouTubeとGA4の共通期間だけを集計。週は月曜〜日曜、月は暦月で、途中期間を明示します。', conversionTrendNode(d, anaState)));
+    }
 
     host.appendChild(tiles([
       ['セッション', compact(totalSessions), d.period.startDate + ' 〜 ' + d.period.endDate, delta(totalSessions, ps.sessions)],
@@ -802,7 +906,9 @@
         'utm_content: ' + d.youtubeDescriptionContent, delta(ytSessions, pys.sessions)],
       ['YouTube概要欄 問い合わせ完了', nf(ytInquiryCount), d.inquiryEventName, delta(ytInquiryCount, previousYtInquiry.eventCount)],
       ['YouTube概要欄 問い合わせ率', pct(ytInquiryRate * 100, 2),
-        '問い合わせ完了 ÷ 遷移セッション']
+        '問い合わせ完了 ÷ 遷移セッション'],
+      ['計測カバレッジ', pct(((d.utmCoverage && d.utmCoverage.rate) || 0) * 100, 1),
+        '動画ID帰属 ' + nf(d.utmCoverage && d.utmCoverage.attributedSessions) + ' / ' + nf(d.utmCoverage && d.utmCoverage.totalSessions)]
     ].filter(Boolean)));
 
     if (d.daily.length) {
@@ -830,19 +936,45 @@
     if ((d.byVideo || []).length) {
       var names = {};
       var anaMeta = dashboardState.ana && dashboardState.ana.ok ? dashboardState.ana.body.videoMetadata || [] : [];
+      var analyticsRows = dashboardState.ana && dashboardState.ana.ok ? dashboardState.ana.body.reports.video || [] : [];
       var publicVideos = dashboardState.pub && dashboardState.pub.ok ? dashboardState.pub.body.videos || [] : [];
+      var viewsById = {};
       publicVideos.forEach(function (v) { names[v.id] = v.title; });
       anaMeta.forEach(function (v) { names[v.id] = v.title; });
+      analyticsRows.forEach(function (v) { viewsById[v.video] = Number(v.views) || 0; });
+      d.byVideo.forEach(function (v) {
+        v.videoViews = viewsById[v.sessionManualCampaignId] || 0;
+        v.sessionPerK = v.videoViews ? v.sessions / v.videoViews * 1000 : null;
+        v.inquiryPerK = v.videoViews ? v.inquiries / v.videoViews * 1000 : null;
+        v.sessionChange = v.previousSessions ? (v.sessions - v.previousSessions) / v.previousSessions : null;
+      });
+      var gaIds = {};
+      d.byVideo.forEach(function (v) { if (/^[A-Za-z0-9_-]{11}$/.test(v.sessionManualCampaignId || '')) gaIds[v.sessionManualCampaignId] = true; });
+      var noTraffic = analyticsRows.filter(function (v) { return Number(v.views) >= 100 && !gaIds[v.video]; })
+        .sort(function (a, b) { return Number(b.views) - Number(a.views); }).slice(0, 3);
+      var improvementItems = [];
+      if (noTraffic.length) improvementItems.push('高視聴・送客未計測：' + noTraffic.map(function (v) {
+        return (names[v.video] || v.video) + '（' + nf(v.views) + '視聴）';
+      }).join('／') + '。概要欄CTAとutm_idを確認します。');
+      if (d.utmCoverage && d.utmCoverage.unattributedSessions) improvementItems.push('動画IDへ帰属できない遷移が' +
+        nf(d.utmCoverage.unattributedSessions) + '件あります。誤ったutm_id（' + d.utmCoverage.invalidIds.slice(0, 3).join('、') + '）を修正します。');
+      if (ytInquiryCount < 5) improvementItems.push('問い合わせは' + nf(ytInquiryCount) + '件で率の優劣を断定できません。まず概要欄遷移を増やし、10セッション未満の動画は率ランキング対象外にします。');
+      if (improvementItems.length) host.appendChild(card('CVを増やす改善対象', '実測値から自動抽出。因果を断定せず、優先確認先を示します。',
+        el('<ul class="actions">' + improvementItems.slice(0, 3).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>')));
       var vcols = [
         { key: 'sessionManualCampaignId', head: '動画', render: function (x) {
           var id = x.sessionManualCampaignId, valid = /^[A-Za-z0-9_-]{11}$/.test(id);
           if (!valid) return '<span class="note">UTM動画IDなし（' + esc(id || 'not set') + '）</span>';
           return '<a href="https://www.youtube.com/watch?v=' + esc(id) + '" target="_blank" rel="noopener">' + esc(names[id] || id) + '</a>';
         } },
+        { key: 'videoViews', head: '期間内視聴回数', num: true, render: function (x) { return esc(x.videoViews ? nf(x.videoViews) : '—'); } },
         { key: 'sessions', head: '概要欄遷移', num: true, render: function (x) { return esc(nf(x.sessions)); } },
+        { key: 'sessionChange', head: '遷移 前期間比', num: true, render: function (x) { return esc(x.sessionChange == null ? '前期間なし' : (x.sessionChange >= 0 ? '+' : '') + pct(x.sessionChange * 100, 1)); } },
+        { key: 'sessionPerK', head: '送客 / 1,000視聴', num: true, render: function (x) { return esc(x.sessionPerK == null ? '—' : nf(x.sessionPerK)); } },
         { key: 'activeUsers', head: 'ユーザー', num: true, render: function (x) { return esc(nf(x.activeUsers)); } },
         { key: 'inquiries', head: '問い合わせ完了', num: true, render: function (x) { return esc(nf(x.inquiries)); } },
-        { key: 'sessionInquiryRate', head: '問い合わせ率', num: true, render: function (x) { return esc(pct(x.sessionInquiryRate * 100, 2)); } }
+        { key: 'sessionInquiryRate', head: '問い合わせ率', num: true, render: function (x) { return esc(x.sessions < 10 ? '母数不足' : pct(x.sessionInquiryRate * 100, 2)); } },
+        { key: 'inquiryPerK', head: '問い合わせ / 1,000視聴', num: true, render: function (x) { return esc(x.inquiryPerK == null ? '—' : nf(x.inquiryPerK)); } }
       ];
       host.appendChild(card('動画別 サイト送客・問い合わせ',
         'utm_content=' + d.youtubeDescriptionContent + '、utm_id=YouTube動画IDのデータを集計します。UTM未設定分は動画へ帰属できません。',
@@ -875,7 +1007,20 @@
     var host = document.getElementById('overview-data');
     var ana = dashboardState.ana, ga = dashboardState.ga;
     if (!ana || !ga) { host.innerHTML = '<div class="skeleton" aria-label="概要を集計中"></div>'; return; }
-    host.innerHTML = '<h2 class="section-title">期間サマリー</h2>';
+    host.innerHTML = '';
+    if (ana.ok && ga.ok && ana.body.reports) {
+      var funnelSummary = (ana.body.reports.summary || [])[0] || {};
+      var funnelSessions = Number((ga.body.youtubeSummary || {}).sessions) || 0;
+      var funnelInquiries = Number((ga.body.youtubeInquirySummary || {}).eventCount) || 0;
+      host.appendChild(card('問い合わせファネル',
+        '共通期間 ' + ana.body.period.startDate + ' 〜 ' + ana.body.period.endDate + '。視聴→遷移は参考比率、CVはイベント数です。',
+        funnelNode(Number(funnelSummary.views) || 0, funnelSessions, funnelInquiries, ga.body.utmCoverage)));
+      var funnelPerK = Number(funnelSummary.views) ? funnelSessions / Number(funnelSummary.views) * 1000 : 0;
+      host.appendChild(el('<div class="diagnosis"><strong>まず確認する箇所：概要欄への送客</strong>' +
+        esc(nf(funnelSummary.views) + '視聴に対して概要欄遷移は' + nf(funnelSessions) + '件（1,000視聴あたり' + nf(funnelPerK) + '件）。' +
+        (funnelInquiries < 5 ? '問い合わせ母数が少ないため、LPの評価より先にCTAとUTMを改善します。' : '次に遷移後の問い合わせ率を改善します。')) + '</div>'));
+    }
+    host.appendChild(el('<h2 class="section-title">期間サマリー</h2>'));
     var list = [];
     if (ana.ok && ana.body.reports) {
       var ys = (ana.body.reports.summary || [])[0] || {}, yp = ana.body.previousSummary || {};
@@ -1022,7 +1167,9 @@
       getJSON('/api/youtube-analytics?days=' + days).catch(softFail)
     ]).then(function (res) {
       dashboardState.pub = res[0]; dashboardState.ana = res[1];
-      renderYouTube(res[0], res[1]); renderOverview();
+      renderYouTube(res[0], res[1]);
+      if (dashboardState.ga) renderGA4(dashboardState.ga);
+      renderOverview();
     });
 
     getJSON('/api/ga4?days=' + days).catch(softFail).then(function (r) {
@@ -1082,7 +1229,3 @@
 </script>
 </body>
 </html>
-    .analysis-controls label { flex: 1 1 130px; }
-    .analysis-controls select { width: 100%; min-width: 0; }
-    .video-detail-head { align-items: flex-start; }
-    .video-detail-head img { width: 92px; }

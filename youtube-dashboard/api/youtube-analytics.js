@@ -12,7 +12,9 @@ const VIDEO_RE = /^[A-Za-z0-9_-]{11}$/;
 const DEFAULT_CHANNEL = 'UCwrivK-bKlDu6ZJzC01GPBw';
 // YouTube Analytics は1〜2日遅れて確定する。直前まで取ると最新の数日だけ不当に低く出て、
 // 推移グラフが「落ちている」ように誤読される。確定している分だけを対象にする。
-const LAG_DAYS = 2;
+// YouTube Analytics の日次行は T-2 でも未確定になることがあるため、
+// GA4 と比較する共通期間は安全側の T-3 までとする。
+const LAG_DAYS = 3;
 
 function send(res, status, body) {
   res.statusCode = status;
