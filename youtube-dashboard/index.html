@@ -350,6 +350,10 @@
     '月次総まとめ': '直近210日の日次データを暦月で集計し、最新月と前月を比較します。YouTube Analyticsの確定遅延により直近3日は含みません。',
     '月次KPI比較': '対象月と前月を同じ指標で比較します。維持率は視聴回数加重、CVはGA4イベント数です。',
     '対象月の週別推移': '対象月の日次データを月曜始まりの暦週で集計します。月をまたぐ週は対象月内の日付だけを集計します。',
+    'よかったこと': '前月比較と対象月の週別データから、改善または成果が確認できた項目を抽出します。',
+    '悪かったこと・注意点': '前月より悪化した指標と、母数不足など判断時に注意すべき点を分けて表示します。',
+    '考えられる要因': '複数指標の組み合わせから考えられる仮説です。因果関係を確定するものではありません。',
+    '今後すべきこと': '月次数値から優先順位を付けた次月の検証項目です。実施後に同じ指標で再評価します。',
     '伸長を再検証する動画': '両期間の上位200本に入り、今期間500視聴以上、前期間100視聴以上、かつ20%以上・100視聴以上増えた既存動画の件数です。',
     '既存動画の伸長候補': '両期間の上位200本に入り、今期間500視聴以上、前期間100視聴以上、かつ20%以上・100視聴以上増えた動画です。',
     '新規動画の初動候補': '今期間に公開され、今期間1,000視聴以上の動画です。既存動画の前期間比とは分けて評価します。',
@@ -1421,11 +1425,45 @@
     ];
     host.appendChild(card('対象月の週別推移', monthLabel + '内の日次データを週単位で集計しています。', sortableTable(weekCols, weeks, { defaultSort: 'period' })));
 
-    var actions = [];
-    if (previous && previous.views) actions.push('視聴回数は前月比' + (((current.views - previous.views) / previous.views * 100) >= 0 ? '+' : '') + ((current.views - previous.views) / previous.views * 100).toFixed(1) + '%。公開本数と上位動画の寄与をYouTube分析で確認します。');
-    if (current.sessions != null) actions.push('概要欄遷移は1,000視聴あたり' + nf(current.sessionPerK) + '件。上位視聴動画のCTAとutm_idを優先点検します。');
-    if (current.inquiries != null) actions.push('問い合わせは' + nf(current.inquiries) + 'イベント。母数が小さいため、単月だけで企画の継続・停止を断定しません。');
-    host.appendChild(card('翌月に向けた確認事項', '月次データから自動生成した確認候補です。', el('<ul class="actions">' + actions.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>')));
+    var good = [], bad = [], hypotheses = [], actions = [];
+    var viewRate = previous && previous.views ? (current.views - previous.views) / previous.views * 100 : null;
+    var watchRate = previous && previous.watchMin ? (current.watchMin - previous.watchMin) / previous.watchMin * 100 : null;
+    var retentionDiff = previous ? current.retention - previous.retention : null;
+    var subsRate = previous && previous.netSubs ? (current.netSubs - previous.netSubs) / Math.abs(previous.netSubs) * 100 : null;
+    var currentAvgSec = current.views ? current.watchMin * 60 / current.views : 0;
+    var previousAvgSec = previous && previous.views ? previous.watchMin * 60 / previous.views : 0;
+    var completeWeeks = weeks.filter(function (g) { return !g.partial; });
+    var bestViewWeek = completeWeeks.slice().sort(function (a, b) { return b.views - a.views; })[0];
+    var bestSessionWeek = completeWeeks.filter(function (g) { return g.sessions != null; }).sort(function (a, b) { return b.sessions - a.sessions; })[0];
+    var cvWeek = completeWeeks.filter(function (g) { return Number(g.inquiries) > 0; }).sort(function (a, b) { return b.inquiries - a.inquiries; })[0];
+
+    if (viewRate != null && viewRate >= 0) good.push('視聴回数は' + nf(current.views) + '回で前月比+' + viewRate.toFixed(1) + '%。8月31日を含まない途中集計でも前月を上回りました。');
+    if (retentionDiff != null && retentionDiff > 0) good.push('平均視聴維持率は' + pct(current.retention, 1) + 'で前月から+' + retentionDiff.toFixed(1) + 'pt改善しました。');
+    if (bestViewWeek) good.push('視聴が最も多かった完了週は' + bestViewWeek.start + '〜' + bestViewWeek.end + 'の' + nf(bestViewWeek.views) + '回です。');
+    if (cvWeek) good.push(cvWeek.start + '〜' + cvWeek.end + 'に問い合わせ' + nf(cvWeek.inquiries) + 'イベントが確認でき、視聴後の成果計測までつながりました。');
+
+    if (watchRate != null && watchRate < 0) bad.push('総再生時間は' + watchAmount(current.watchMin) + 'で前月比' + watchRate.toFixed(1) + '%。視聴回数増加に対して視聴時間が減っています。');
+    if (previousAvgSec && currentAvgSec < previousAvgSec) bad.push('1視聴あたり再生時間の概算は' + Math.round(previousAvgSec) + '秒から' + Math.round(currentAvgSec) + '秒へ短縮しました。短尺動画比率の影響を切り分ける必要があります。');
+    if (subsRate != null && subsRate < 0) bad.push('登録者純増は+' + nf(current.netSubs) + 'で前月より' + nf(Math.abs(current.netSubs - previous.netSubs)) + '人減少。1,000視聴あたり純増も' + nf(previous.netSubs / previous.views * 1000) + '人から' + nf(current.netSubs / current.views * 1000) + '人へ低下しました。');
+    if (current.sessions != null) bad.push('概要欄遷移は' + nf(current.sessions) + 'セッション、1,000視聴あたり' + nf(current.sessionPerK) + '件です。過去月は計測前のため、前月比較はできません。');
+    if (current.inquiries != null && current.inquiries < 3) bad.push('問い合わせは' + nf(current.inquiries) + 'イベントのみです。CV増加・減少を判断するにはまだ母数が不足しています。');
+
+    if (retentionDiff > 0 && watchRate < 0) hypotheses.push('維持率は改善した一方、総再生時間と1視聴あたり時間は低下しています。短尺動画の視聴増が全体再生数を押し上げた可能性があります。');
+    if (completeWeeks.length >= 2) {
+      var minWeek = completeWeeks.slice().sort(function (a, b) { return a.views - b.views; })[0];
+      if (minWeek && bestViewWeek.views >= minWeek.views * 1.5) hypotheses.push('完了週の視聴回数は' + nf(minWeek.views) + '〜' + nf(bestViewWeek.views) + '回と振れ幅があります。投稿本数または一部動画への依存が大きい可能性があります。');
+    }
+    if (bestSessionWeek) hypotheses.push('概要欄遷移が最多の週は' + bestSessionWeek.start + '〜' + bestSessionWeek.end + 'の' + nf(bestSessionWeek.sessions) + '件です。視聴最多週とは分けて、CTA・動画テーマ・リンク位置を比較する価値があります。');
+
+    actions.push('優先度1：8月の視聴上位動画について、概要欄CTAの有無・文言・リンク位置・utm_idを一覧点検し、未設定をなくします。');
+    if (bestSessionWeek) actions.push('優先度2：送客最多週（' + bestSessionWeek.start + '〜' + bestSessionWeek.end + '）の公開動画とCTAを特定し、翌月の動画2本で同じ導線を再検証します。');
+    actions.push('優先度3：短尺と長尺を分け、視聴回数・平均視聴時間・登録者純増/1,000視聴を比較します。再生数だけで企画を評価しません。');
+    actions.push('優先度4：問い合わせが3イベント以上蓄積するまでは、単月CVだけで動画企画の継続・停止を決めず、概要欄遷移数を先行指標として追います。');
+
+    host.appendChild(el('<div class="recommend-grid"><div class="recommend-block good"><h3>よかったこと' + helpIcon('よかったこと') + '</h3><ul>' + good.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
+      '<div class="recommend-block caution"><h3>悪かったこと・注意点' + helpIcon('悪かったこと・注意点') + '</h3><ul>' + bad.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div></div>'));
+    host.appendChild(card('考えられる要因', '数値の組み合わせから作った仮説であり、因果を断定するものではありません。', el('<ul class="actions">' + hypotheses.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>')));
+    host.appendChild(card('今後すべきこと', 'CVを増やすため、計測整備→送客改善→企画評価の順に実行します。', el('<ul class="actions">' + actions.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>')));
   }
 
   function timeAnalysis(rows, initialUnit, monthlyRows, gaData, monthlyGaData) {
