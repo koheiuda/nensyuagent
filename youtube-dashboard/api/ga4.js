@@ -83,7 +83,7 @@ module.exports = async (req, res) => {
   const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   const url = new URL(req.url, 'http://localhost');
   const days = Math.min(Math.max(parseInt(url.searchParams.get('days'), 10) || 90, 1), 400);
-  // YouTube Analyticsと分子・分母の期間を一致させるため、GA4も直近2日を除外する。
+  // YouTube Analyticsと分子・分母の期間を一致させるため、GA4も直近3日を除外する。
   const startDate = `${days + LAG_DAYS - 1}daysAgo`;
   const endDate = `${LAG_DAYS}daysAgo`;
 
