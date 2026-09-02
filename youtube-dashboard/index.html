@@ -84,6 +84,10 @@
   .card > h2 { font-size: 14px; margin: 0 0 2px; }
   .card > .note { color: var(--muted); font-size: 12px; margin: 0 0 16px; }
   .note { color: var(--muted); font-size: 12px; margin: 0; }
+  .help { display: inline-grid; place-items: center; width: 17px; height: 17px; margin-left: 5px; padding: 0;
+          border: 1px solid var(--axis); border-radius: 50%; background: transparent; color: var(--muted);
+          font: 700 11px/1 system-ui, sans-serif; vertical-align: 1px; cursor: help; }
+  .help:hover, .help:focus-visible { color: var(--series-1); border-color: var(--series-1); outline: none; }
   code { background: var(--track); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
 
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 12px; margin-bottom: 16px; }
@@ -146,7 +150,7 @@
   .setup ol { margin: 8px 0 0; padding-left: 20px; }
   .setup li { margin-bottom: 5px; color: var(--text-secondary); font-size: 13px; }
 
-  #tip { position: fixed; z-index: 20; pointer-events: none; opacity: 0; transition: opacity .08s;
+  #tip { position: fixed; z-index: 30; pointer-events: none; opacity: 0;
          background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
          border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 24px rgba(0,0,0,.14); max-width: 290px; }
   #tip b { display: block; margin-bottom: 3px; }
@@ -250,13 +254,76 @@
   'use strict';
 
   var tip = document.getElementById('tip');
+  var pinnedHelp = null;
   function showTip(html, ev) {
     tip.innerHTML = html; tip.style.opacity = '1';
     var pad = 14, r = tip.getBoundingClientRect();
     tip.style.left = Math.min(ev.clientX + pad, window.innerWidth - r.width - 8) + 'px';
     tip.style.top = Math.max(8, ev.clientY - r.height - pad) + 'px';
   }
-  function hideTip() { tip.style.opacity = '0'; }
+  function hideTip(force) {
+    if (!force && pinnedHelp) return;
+    tip.style.opacity = '0';
+    if (force) pinnedHelp = null;
+  }
+
+  var HELP = {
+    '登録者数': 'YouTube Data APIの現在値です。期間指定の影響を受けないチャンネル累計値です。',
+    'チャンネル総再生回数': 'YouTube Data APIが返すチャンネル全期間の累計視聴回数です。選択期間内の値ではありません。',
+    '期間内 視聴回数': 'YouTube Analytics APIのviewsを選択期間で集計します。確定待ちを避けるため直近2日を除外しています。',
+    'YouTube 視聴回数': 'YouTube Analytics APIのviewsを選択期間で集計した値です。前期間比は直前の同じ日数と比較します。',
+    '期間内 登録者純増': '選択期間のsubscribersGainedからsubscribersLostを引いた値です。',
+    '登録者純増': '選択期間の登録者増加数から登録解除数を引いた値です。',
+    '平均視聴維持率': 'YouTube Analytics APIのaverageViewPercentageを期間全体・動画別に取得します。動画の何％まで平均して視聴されたかを示します。',
+    '総再生時間': 'YouTube Analytics APIのestimatedMinutesWatchedです。画面では時間または分に換算します。',
+    'セッション': 'GA4のsessionsです。/nensyuagent本体と配下で開始・継続したセッションを選択期間で集計します。',
+    'ユーザー': 'GA4のactiveUsersを期間全体で取得した重複除外値です。日別ユーザー数の合計ではありません。',
+    'ページビュー': 'GA4のscreenPageViewsです。/nensyuagent本体と配下のページ表示回数を合計します。',
+    'キーイベント数': 'GA4でキーイベントに指定されたイベントの発生回数です。ユーザー数や成約件数とは限りません。',
+    'YouTube経由 セッション': 'sessionSourceにyoutubeまたはyoutu.beを含み、/nensyuagent本体・配下へ到達したGA4セッション数です。',
+    'YouTube経由 キーイベント': 'YouTube経由セッションのうち、対象パス上で発生したGA4キーイベントの回数です。後続の別ページで発生した成果は含まれません。',
+    'YouTube経由 セッションキーイベント率': 'GA4のsessionKeyEventRateです。YouTube経由セッションのうち、1件以上のキーイベントが発生したセッションの割合です。',
+    'セッションキーイベント率': 'GA4のsessionKeyEventRateです。キーイベント数÷セッション数ではなく、キーイベントが発生したセッションの割合です。',
+    '視聴回数の推移': 'YouTube Analytics APIの日別viewsです。45日を超える場合は読みやすさのため7日単位で合計します。',
+    'トラフィックソース': 'YouTube Analytics APIのinsightTrafficSourceType別viewsです。検索・関連動画・ショートフィードなど発見経路を示します。',
+    '視聴回数 トップ10': '選択期間のYouTube Analytics viewsで降順にした上位10動画です。累計再生回数とは分けて集計します。',
+    '再生回数 トップ10': 'YouTube Data APIの全期間累計再生回数で並べた上位10動画です。',
+    '動画別': '公開動画情報とYouTube Analyticsを動画IDで結合しています。初期表示は期間内視聴回数の上位20件です。',
+    '伸びた動画 トップ3': '選択期間のYouTube Analytics viewsが多い3動画です。動画の公開時期が異なるため初速比較ではありません。',
+    '今やること': '前期間比、サイト送客率、登録者獲得効率からルールベースで生成した確認候補です。因果関係を断定するものではありません。',
+    'セッションの推移': 'GA4のsessionsを日別表示します。45日を超える場合は7日単位で合計します。',
+    'YouTube経由 セッションの推移': 'sessionSourceがyoutubeまたはyoutu.beのGA4セッションを日別表示します。',
+    '参照元／メディア別 セッション': 'GA4のsessionSourceMedium別セッション上位25件です。',
+    'ページ別': '対象パス内のGA4ページ別集計です。セッション・ユーザーは各ページ行の値で、行同士を単純合算すると重複する場合があります。',
+    '動画': 'YouTube動画のタイトルです。クリックすると該当動画を別タブで開きます。',
+    '公開日': 'YouTube Data APIのsnippet.publishedAtから公開日をYYYY-MM-DD形式で表示しています。',
+    '累計再生回数': 'YouTube Data APIの動画公開後から現在までの累計viewCountです。',
+    '期間内視聴回数': '選択期間に発生したYouTube Analyticsのviewsです。',
+    '維持率': '動画別averageViewPercentageです。平均して動画尺の何％まで視聴されたかを示します。',
+    '平均視聴時間': '動画別averageViewDurationです。1視聴あたりの平均視聴秒数を時分秒で表示します。',
+    '登録者増加': 'その動画に帰属したsubscribersGainedです。登録解除はこの列から差し引いていません。',
+    '登録者 / 1,000視聴': '動画に帰属した登録者増加数÷期間内視聴回数×1,000です。規模の異なる動画の登録獲得効率を比較します。',
+    'ページ': 'GA4のpagePathです。/nensyuagent本体または配下だけを対象にしています。',
+    'PV': 'GA4のscreenPageViewsです。ページが表示された回数です。'
+  };
+
+  function helpText(label) {
+    if (HELP[label]) return HELP[label];
+    var key = Object.keys(HELP).filter(function (k) { return String(label).indexOf(k) === 0; })
+      .sort(function (a, b) { return b.length - a.length; })[0];
+    return key ? HELP[key] : '';
+  }
+
+  function helpIcon(label) {
+    var text = helpText(label);
+    return text ? '<button class="help" type="button" aria-label="' + esc(label) + 'の計測方法と補足" data-help="' + esc(text) + '">?</button>' : '';
+  }
+
+  function showHelp(button, ev) {
+    var r = button.getBoundingClientRect();
+    showTip('<b>' + esc(button.getAttribute('aria-label').replace('の計測方法と補足', '')) + '</b><span class="r">' +
+      esc(button.getAttribute('data-help')) + '</span>', ev && ev.clientX ? ev : { clientX: r.left, clientY: r.top });
+  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -287,7 +354,7 @@
   function tiles(list) {
     var host = el('<div class="tiles"></div>');
     list.forEach(function (t) {
-      host.appendChild(el('<div class="tile"><div class="k">' + esc(t[0]) + '</div><div class="v">' +
+      host.appendChild(el('<div class="tile"><div class="k">' + esc(t[0]) + helpIcon(t[0]) + '</div><div class="v">' +
         esc(t[1]) + '</div><div class="m">' + esc(t[2] || '') + '</div>' +
         (t[3] ? '<span class="delta ' + esc(t[3].state || '') + '">' + esc(t[3].label) + '</span>' : '') + '</div>'));
     });
@@ -398,7 +465,7 @@
       state.page = Math.min(state.page, pages);
       if (options.explore) data = data.slice((state.page - 1) * pageSize, state.page * pageSize);
       table.innerHTML = '<thead><tr>' + cols.map(function (c) {
-        return '<th class="' + (c.num ? 'num' : '') + '" data-k="' + esc(c.key) + '">' + esc(c.head) +
+        return '<th class="' + (c.num ? 'num' : '') + '" data-k="' + esc(c.key) + '">' + esc(c.head) + helpIcon(c.head) +
           (state.key === c.key ? (state.dir < 0 ? ' ↓' : ' ↑') : '') + '</th>';
       }).join('') + '</tr></thead><tbody>' + data.map(function (r) {
         return '<tr>' + cols.map(function (c) {
@@ -427,7 +494,7 @@
   }
 
   function card(title, note, node) {
-    var c = el('<div class="card"><h2>' + esc(title) + '</h2><p class="note">' + esc(note || '') + '</p></div>');
+    var c = el('<div class="card"><h2>' + esc(title) + helpIcon(title) + '</h2><p class="note">' + esc(note || '') + '</p></div>');
     c.appendChild(node);
     return c;
   }
@@ -795,6 +862,31 @@
     });
     if (updateHash) history.replaceState(null, '', name === 'overview' ? '#overview' : name === 'yt' ? '#youtube' : '#ga4');
   }
+
+  document.addEventListener('mouseover', function (e) {
+    var button = e.target.closest && e.target.closest('.help');
+    if (button) showHelp(button, e);
+  });
+  document.addEventListener('mouseout', function (e) {
+    var button = e.target.closest && e.target.closest('.help');
+    if (button && button !== pinnedHelp && !button.contains(e.relatedTarget)) hideTip();
+  });
+  document.addEventListener('focusin', function (e) {
+    var button = e.target.closest && e.target.closest('.help');
+    if (button) showHelp(button);
+  });
+  document.addEventListener('focusout', function (e) {
+    if (e.target.closest && e.target.closest('.help') !== pinnedHelp) hideTip();
+  });
+  document.addEventListener('click', function (e) {
+    var button = e.target.closest && e.target.closest('.help');
+    if (button) {
+      e.preventDefault(); e.stopPropagation();
+      pinnedHelp = pinnedHelp === button ? null : button;
+      if (pinnedHelp) showHelp(button, e); else hideTip(true);
+    } else hideTip(true);
+  }, true);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideTip(true); });
 
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
     t.addEventListener('click', function () { selectTab(t.dataset.tab, true); });
