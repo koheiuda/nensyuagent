@@ -333,6 +333,8 @@
     'YouTube概要欄 問い合わせ完了': 'sessionManualAdContentが「agent-ch_desc」のセッションに帰属する「CV_求職者all」のイベント数です。',
     'YouTube概要欄 問い合わせ率': 'YouTube概要欄経由の問い合わせ完了イベント数÷概要欄遷移セッション数です。同一人物の重複イベントを除く成約率ではありません。',
     'YouTube概要欄 問い合わせイベント / セッション': 'YouTube概要欄経由の問い合わせ完了イベント数÷概要欄遷移セッション数です。同一人物の重複イベントを除くCVRではなく、100%を超える可能性があります。',
+    '概要欄遷移数': 'GA4のsessionManualAdContentが「agent-ch_desc」と完全一致するセッション数です。YouTube上のリンククリック数ではありません。',
+    '問い合わせ数': '概要欄遷移セッションに帰属した、GA4の「CV_求職者all」イベント数です。ユニークリード数ではありません。',
     '問い合わせイベント / セッション': '問い合わせ完了イベント数÷概要欄遷移セッション数です。ユニークユーザー単位のCVRではありません。',
     'セッションキーイベント率': 'GA4のsessionKeyEventRateです。キーイベント数÷セッション数ではなく、キーイベントが発生したセッションの割合です。',
     '視聴回数の推移': 'YouTube Analytics APIの日別viewsです。45日を超える場合は読みやすさのため7日単位で合計します。',
@@ -752,7 +754,9 @@
       '日次・暦週（月曜〜日曜）・暦月で切替。最新' + (ana.ok && ana.body.lagDays ? ana.body.lagDays : 3) +
       '日は未確定のため含めません。維持率は視聴回数加重の参考値です。',
       timeAnalysis(daily, days <= 28 ? 'day' : days <= 180 ? 'week' : 'month',
-        dashboardState.monthlyAna && dashboardState.monthlyAna.ok ? dashboardState.monthlyAna.body.reports.daily || [] : [])));
+        dashboardState.monthlyAna && dashboardState.monthlyAna.ok ? dashboardState.monthlyAna.body.reports.daily || [] : [],
+        dashboardState.ga && dashboardState.ga.ok ? dashboardState.ga.body : null,
+        dashboardState.monthlyGa && dashboardState.monthlyGa.ok ? dashboardState.monthlyGa.body : null)));
 
     if (A && A.trafficSource && A.trafficSource.length) {
       var LABELS = {
@@ -1346,20 +1350,36 @@
     });
   }
 
-  function timeAnalysis(rows, initialUnit, monthlyRows) {
+  function timeAnalysis(rows, initialUnit, monthlyRows, gaData, monthlyGaData) {
     var host = el('<div></div>');
     var controls = el('<div class="analysis-controls">' +
       '<label>集計単位<select data-role="unit"><option value="day">日次</option><option value="week">週次</option><option value="month">月次</option></select></label>' +
-      '<label>表示指標<select data-role="metric"><option value="views">視聴回数</option><option value="watchMin">総再生時間</option><option value="retention">平均視聴維持率（参考）</option><option value="netSubs">登録者純増</option></select></label></div>');
+      '<label>表示指標<select data-role="metric"><option value="views">視聴回数</option><option value="watchMin">総再生時間</option><option value="retention">平均視聴維持率（参考）</option><option value="netSubs">登録者純増</option><option value="sessions">概要欄遷移数</option><option value="inquiries">問い合わせ数</option></select></label></div>');
     var compareHost = el('<div></div>'), chartHost = el('<div></div>'), tableHost = el('<div></div>');
     controls.querySelector('[data-role="unit"]').value = initialUnit || 'week';
     function draw() {
       var unit = controls.querySelector('[data-role="unit"]').value;
       var metric = controls.querySelector('[data-role="metric"]').value;
-      var allGrouped = aggregateRows(unit === 'month' && monthlyRows && monthlyRows.length ? monthlyRows : rows, unit);
+      var sourceRows = unit === 'month' && monthlyRows && monthlyRows.length ? monthlyRows : rows;
+      var sourceGa = unit === 'month' && monthlyGaData ? monthlyGaData : gaData;
+      var allGrouped = aggregateRows(sourceRows, unit);
+      if (sourceGa && sourceRows.length) {
+        var gaGrouped = conversionBuckets(sourceRows, sourceGa.youtubeDaily || [], sourceGa.youtubeInquiryDaily || [], unit,
+          normDate(sourceRows[0].day), normDate(sourceRows[sourceRows.length - 1].day));
+        var gaByPeriod = {};
+        gaGrouped.forEach(function (g) { gaByPeriod[g.period] = g; });
+        allGrouped.forEach(function (g) {
+          var match = gaByPeriod[g.period];
+          g.sessions = match ? match.sessions : 0;
+          g.inquiries = match ? match.inquiries : 0;
+          g.trackingBefore = match ? match.trackingBefore : false;
+        });
+      } else {
+        allGrouped.forEach(function (g) { g.sessions = null; g.inquiries = null; g.trackingBefore = true; });
+      }
       allGrouped.forEach(function (g, i) { g.previous = i ? allGrouped[i - 1] : null; });
       var grouped = unit === 'month' ? allGrouped.slice(-6) : allGrouped;
-      var labels = { views: '視聴回数', watchMin: '総再生時間（分）', netSubs: '登録者純増', retention: '平均視聴維持率（視聴回数加重）' };
+      var labels = { views: '視聴回数', watchMin: '総再生時間（分）', netSubs: '登録者純増', retention: '平均視聴維持率（視聴回数加重）', sessions: '概要欄遷移数', inquiries: '問い合わせ数' };
       chartHost.innerHTML = '';
       compareHost.innerHTML = '';
       var complete = grouped.filter(function (g) { return !g.partial; });
@@ -1383,7 +1403,9 @@
         { key: 'views', head: '視聴回数', num: true, render: function (g) { return esc(nf(g.views)) + (unit === 'month' && g.previous ? mom(g.views, g.previous.views, { partial: g.partial, previousPartial: g.previous.partial }) : ''); } },
         { key: 'watchMin', head: '総再生時間', num: true, render: function (g) { return esc(watchAmount(g.watchMin)) + (unit === 'month' && g.previous ? mom(g.watchMin, g.previous.watchMin, { partial: g.partial, previousPartial: g.previous.partial }) : ''); } },
         { key: 'retention', head: '維持率', num: true, render: function (g) { return esc(pct(g.retention, 1)) + (unit === 'month' && g.previous ? mom(g.retention, g.previous.retention, { partial: g.partial, previousPartial: g.previous.partial, kind: 'point', scale: 1, unit: 'pt', digits: 1 }) : ''); } },
-        { key: 'netSubs', head: '登録者純増', num: true, render: function (g) { return esc((g.netSubs >= 0 ? '+' : '') + nf(g.netSubs)) + (unit === 'month' && g.previous ? mom(g.netSubs, g.previous.netSubs, { partial: g.partial, previousPartial: g.previous.partial, kind: 'signed' }) : ''); } }
+        { key: 'netSubs', head: '登録者純増', num: true, render: function (g) { return esc((g.netSubs >= 0 ? '+' : '') + nf(g.netSubs)) + (unit === 'month' && g.previous ? mom(g.netSubs, g.previous.netSubs, { partial: g.partial, previousPartial: g.previous.partial, kind: 'signed' }) : ''); } },
+        { key: 'sessions', head: '概要欄遷移数', num: true, render: function (g) { return g.sessions == null ? '—<span class="mom">計測前</span>' : esc(nf(g.sessions)) + (unit === 'month' && g.previous ? mom(g.sessions, g.previous.sessions, { partial: g.partial, previousPartial: g.previous.partial }) : ''); } },
+        { key: 'inquiries', head: '問い合わせ数', num: true, render: function (g) { return g.inquiries == null ? '—<span class="mom">計測前</span>' : esc(nf(g.inquiries)) + (unit === 'month' && g.previous ? mom(g.inquiries, g.previous.inquiries, { partial: g.partial, previousPartial: g.previous.partial }) : ''); } }
       ];
       tableHost.innerHTML = ''; tableHost.appendChild(sortableTable(cols, grouped, { defaultSort: 'period' }));
     }
