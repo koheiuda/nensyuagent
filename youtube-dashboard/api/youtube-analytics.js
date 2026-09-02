@@ -56,6 +56,36 @@ function isoDaysAgo(days) {
   return d.toISOString().slice(0, 10);
 }
 
+// Analytics の上位動画は「最新200本」と一致しないため、レポート内の動画IDを直接引いて
+// タイトル・公開日・累計値を補完する。videos.list は最大50 IDずつ。
+async function fetchVideoMetadata(token, rows) {
+  const ids = Array.from(new Set((rows || []).map(function (row) { return row.video; }).filter(Boolean)));
+  const videos = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const qs = new URLSearchParams({
+      part: 'snippet,statistics,contentDetails',
+      id: ids.slice(i, i + 50).join(','),
+      maxResults: '50',
+    });
+    const payload = await authedFetch(`https://www.googleapis.com/youtube/v3/videos?${qs}`, token, { method: 'GET' });
+    for (const item of payload.items || []) {
+      const statistics = item.statistics || {};
+      videos.push({
+        id: item.id,
+        title: item.snippet && item.snippet.title,
+        publishedAt: item.snippet && item.snippet.publishedAt,
+        thumbnail: item.snippet && item.snippet.thumbnails &&
+          ((item.snippet.thumbnails.medium || item.snippet.thumbnails.default || {}).url || null),
+        views: Number(statistics.viewCount) || 0,
+        likes: Number(statistics.likeCount) || 0,
+        comments: Number(statistics.commentCount) || 0,
+        duration: item.contentDetails && item.contentDetails.duration,
+      });
+    }
+  }
+  return videos;
+}
+
 module.exports = async (req, res) => {
   if (!requireAuth(req, res)) return;
   const clientId = process.env.YOUTUBE_CLIENT_ID;
@@ -115,6 +145,16 @@ module.exports = async (req, res) => {
       }
     }
 
+    if (out.reports.video && out.reports.video.length) {
+      try {
+        out.videoMetadata = await fetchVideoMetadata(token, out.reports.video);
+      } catch (e) {
+        // 分析指標は返し、メタデータ補完だけ失敗として明示する。
+        out.failed.videoMetadata = e.message || 'unknown error';
+        out.videoMetadata = [];
+      }
+    }
+
     if (!Object.keys(out.reports).length) {
       return send(res, 502, {
         error: 'youtube_analytics_error',
@@ -137,3 +177,4 @@ module.exports = async (req, res) => {
 
 module.exports.toRows = toRows;
 module.exports.REPORTS = REPORTS;
+module.exports.fetchVideoMetadata = fetchVideoMetadata;

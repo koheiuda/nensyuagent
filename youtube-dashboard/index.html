@@ -509,8 +509,19 @@
     // 公開データ（タイトル）と Analytics（非公開指標）を video ID で突き合わせる
     var byId = {};
     vids.forEach(function (v) { byId[v.id] = Object.assign({}, v); });
+    ((ana.ok && ana.body.videoMetadata) || []).forEach(function (v) {
+      var duration = String(v.duration || '');
+      var m = /^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(duration);
+      var seconds = m ? ((+m[1] || 0) * 86400 + (+m[2] || 0) * 3600 + (+m[3] || 0) * 60 + (+m[4] || 0)) : 0;
+      byId[v.id] = Object.assign({}, byId[v.id] || {}, v, {
+        seconds: seconds,
+        isShort: seconds > 0 && seconds <= 60
+      });
+    });
     ((A && A.video) || []).forEach(function (r) {
-      var t = byId[r.video] || (byId[r.video] = { id: r.video, title: '(取得できない動画)', views: 0 });
+      var t = byId[r.video] || (byId[r.video] = {
+        id: r.video, title: '非公開または削除済み動画', views: 0, unavailable: true
+      });
       t.aViews = r.views; t.retention = r.averageViewPercentage; t.watchMin = r.estimatedMinutesWatched;
       t.avgDuration = r.averageViewDuration; t.subs = r.subscribersGained;
     });
@@ -530,7 +541,8 @@
 
     var cols = [
       { key: 'title', head: '動画', render: function (r) {
-        return '<a href="https://www.youtube.com/watch?v=' + esc(r.id) + '" target="_blank" rel="noopener">' + esc(r.title) + '</a>' +
+        return (r.unavailable ? '<span class="note">' + esc(r.title) + '</span>' :
+          '<a href="https://www.youtube.com/watch?v=' + esc(r.id) + '" target="_blank" rel="noopener">' + esc(r.title) + '</a>') +
           (r.isShort ? ' <span class="note">（ショート）</span>' : ''); } },
       { key: 'publishedAt', head: '公開日', render: function (r) { return esc(r.publishedAt ? normDate(r.publishedAt.slice(0, 10)) : '—'); } },
       { key: 'views', head: '累計再生', num: true, render: function (r) { return esc(nf(r.views)); } }
