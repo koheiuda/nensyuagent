@@ -34,6 +34,14 @@
     --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --track: rgba(255,255,255,0.07);
     --warn-ink: #fab219; --warn-bg: rgba(250,178,25,0.10); --warn-line: rgba(250,178,25,0.32);
   }
+  :root[data-theme="dark"] .delta.up { color: #55d9aa; }
+  :root[data-theme="dark"] .delta.down { color: #ff8068; }
+  :root[data-theme="dark"] .partial { color: #b9b7b0; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .delta.up { color: #55d9aa; }
+    :root:not([data-theme="light"]) .delta.down { color: #ff8068; }
+    :root:not([data-theme="light"]) .partial { color: #b9b7b0; }
+  }
 
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--plane); color: var(--text-primary);
@@ -147,6 +155,8 @@
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
   th { color: var(--text-secondary); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; user-select: none; }
+  .sort-button { appearance: none; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; font-weight: inherit; cursor: pointer; }
+  .sort-button:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; border-radius: 3px; }
   thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-1); }
   th:hover { color: var(--text-primary); }
   th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -206,6 +216,35 @@
   .mom { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; white-space: nowrap; }
   .mom.up { color: var(--ok); }
   .mom.down { color: var(--danger); }
+  .report-index { position: sticky; top: 10px; z-index: 5; display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 16px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); }
+  .report-index a { padding: 5px 9px; border-radius: 999px; background: var(--track); color: var(--text-secondary); font-size: 11px; font-weight: 700; text-decoration: none; }
+  .report-index a:hover { color: var(--series-1); }
+  .executive-verdict { border-left: 5px solid var(--series-1); padding: 13px 15px; background: rgba(42,120,214,.06); border-radius: 8px; }
+  .executive-verdict .verdict { margin: 0 0 4px; font-size: 18px; font-weight: 750; line-height: 1.45; }
+  .executive-verdict .basis { margin: 0; color: var(--text-secondary); font-size: 12px; }
+  .funnel-diagnosis { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 9px; }
+  .funnel-diagnosis .stage-card { border: 1px solid var(--border); border-radius: 10px; padding: 13px; }
+  .stage-card .stage-no { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .05em; }
+  .stage-card strong { display: block; margin: 3px 0; font-size: 13px; }
+  .stage-card .stage-value { font-size: 21px; font-weight: 750; font-variant-numeric: tabular-nums; }
+  .stage-card .stage-note { margin-top: 4px; color: var(--muted); font-size: 11px; }
+  .stage-card.good { border-top: 3px solid var(--series-3); }
+  .stage-card.warn { border-top: 3px solid #e9a012; }
+  .stage-card.bad { border-top: 3px solid #c23b22; }
+  .alert-list { display: grid; gap: 9px; }
+  .analysis-alert { display: grid; grid-template-columns: 66px minmax(0,1fr); gap: 11px; align-items: start; padding: 12px; border: 1px solid var(--border); border-radius: 9px; }
+  .severity { display: inline-flex; justify-content: center; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 800; }
+  .severity.high { color: #b52c18; background: rgba(194,59,34,.11); }
+  .severity.medium { color: var(--warn-ink); background: var(--warn-bg); }
+  .severity.info { color: #1768bd; background: rgba(42,120,214,.10); }
+  .analysis-alert strong { display: block; font-size: 13px; }
+  .analysis-alert p { margin: 2px 0 0; color: var(--text-secondary); font-size: 12px; }
+  .action-plan { display: grid; gap: 9px; }
+  .action-row { display: grid; grid-template-columns: 62px 1.2fr 1fr; gap: 12px; padding: 12px; border-bottom: 1px solid var(--border); }
+  .action-row:last-child { border-bottom: 0; }
+  .action-when { color: var(--series-1); font-size: 11px; font-weight: 800; }
+  .action-row strong { display: block; font-size: 13px; }
+  .action-check { color: var(--text-secondary); font-size: 12px; }
   @media (max-width: 720px) {
     .funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .analysis-controls label { flex: 1 1 130px; }
@@ -233,6 +272,11 @@
     .tile .v { font-size: 23px; }
     .card { padding: 14px; }
     .hrow { grid-template-columns: minmax(100px, 1fr) 42% auto; gap: 7px; }
+    .report-index { top: 67px; overflow-x: auto; flex-wrap: nowrap; }
+    .report-index a { flex: 0 0 auto; }
+    .funnel-diagnosis { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .action-row { grid-template-columns: 54px minmax(0,1fr); }
+    .action-check { grid-column: 2; }
   }
 </style>
 </head>
@@ -354,6 +398,10 @@
     '悪かったこと・注意点': '前月より悪化した指標と、母数不足など判断時に注意すべき点を分けて表示します。',
     '考えられる要因': '複数指標の組み合わせから考えられる仮説です。因果関係を確定するものではありません。',
     '今後すべきこと': '月次数値から優先順位を付けた次月の検証項目です。実施後に同じ指標で再評価します。',
+    'エグゼクティブ結論': '視聴・視聴深度・概要欄遷移・問い合わせを順に見て、対象月で最も優先して改善すべき点を1文にまとめます。因果関係の断定ではありません。',
+    'ファネル診断': '視聴回数→視聴深度→概要欄遷移→問い合わせの順に、各段階の実測値と比較可能性を確認します。各値は同一ユーザーを追跡した直接ファネルではありません。',
+    '重要アラート': 'CVへの影響と判断上のリスクをもとに、高・中・情報の3段階で確認事項を並べます。',
+    '実行計画': '改善施策に期限と判定指標を付けます。施策後は先行指標からCVの順で確認し、単発の増減だけで判断しません。',
     '伸長を再検証する動画': '両期間の上位200本に入り、今期間500視聴以上、前期間100視聴以上、かつ20%以上・100視聴以上増えた既存動画の件数です。',
     '既存動画の伸長候補': '両期間の上位200本に入り、今期間500視聴以上、前期間100視聴以上、かつ20%以上・100視聴以上増えた動画です。',
     '新規動画の初動候補': '今期間に公開され、今期間1,000視聴以上の動画です。既存動画の前期間比とは分けて評価します。',
@@ -578,23 +626,20 @@
       if (options.explore) data = data.slice((state.page - 1) * pageSize, state.page * pageSize);
       table.innerHTML = '<thead><tr>' + cols.map(function (c) {
         var sortState = state.key === c.key ? (state.dir < 0 ? 'descending' : 'ascending') : 'none';
-        return '<th class="' + (c.num ? 'num' : '') + '" data-k="' + esc(c.key) + '" tabindex="0" role="button" aria-sort="' + sortState + '" aria-label="' + esc(c.head) + 'で並べ替え">' + esc(c.head) + helpIcon(c.head) +
-          (state.key === c.key ? (state.dir < 0 ? ' ↓' : ' ↑') : '') + '</th>';
+        return '<th class="' + (c.num ? 'num' : '') + '" aria-sort="' + sortState + '"><button class="sort-button" type="button" data-k="' + esc(c.key) + '" aria-label="' + esc(c.head) + 'で並べ替え">' + esc(c.head) +
+          (state.key === c.key ? (state.dir < 0 ? ' ↓' : ' ↑') : '') + '</button>' + helpIcon(c.head) + '</th>';
       }).join('') + '</tr></thead><tbody>' + data.map(function (r) {
         return '<tr>' + cols.map(function (c) {
           return '<td class="' + (c.num ? 'num' : '') + '">' + (c.render ? c.render(r) : esc(r[c.key])) + '</td>';
         }).join('') + '</tr>';
       }).join('') + '</tbody>';
-      Array.prototype.forEach.call(table.querySelectorAll('th'), function (th) {
+      Array.prototype.forEach.call(table.querySelectorAll('.sort-button'), function (button) {
         function sort() {
-          var k = th.getAttribute('data-k');
+          var k = button.getAttribute('data-k');
           if (state.key === k) state.dir = -state.dir; else { state.key = k; state.dir = -1; }
           draw();
         }
-        th.addEventListener('click', sort);
-        th.addEventListener('keydown', function (e) {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sort(); }
-        });
+        button.addEventListener('click', sort);
       });
       if (options.explore) {
         count.textContent = nf(total) + '件';
@@ -1386,16 +1431,29 @@
     var current = months[months.length - 1], previous = months.length > 1 ? months[months.length - 2] : null;
     var monthLabel = current.start.slice(0, 7).replace('-', '年') + '月';
     var dataThrough = ana.body.period.endDate;
+    host.appendChild(el('<nav class="report-index" aria-label="月次レポート内メニュー"><a href="#monthly-conclusion">結論</a><a href="#monthly-kpi">KPI比較</a><a href="#monthly-funnel">ファネル診断</a><a href="#monthly-weekly">週別</a><a href="#monthly-alerts">重要アラート</a><a href="#monthly-actions">実行計画</a></nav>'));
     var summaryNote = monthLabel + '（' + current.start + '〜' + dataThrough + '）を総括。' +
       (current.partial ? current.end + 'までの月確定前データを含まず、前月比は参考値です。' : '暦月の確定値です。');
-    host.appendChild(card('月次総まとめ', summaryNote, tiles([
+    var summaryCard = card('月次総まとめ', summaryNote, tiles([
       ['視聴回数', compact(current.views), monthLabel, previous ? delta(current.views, previous.views, '前月比') : null],
       ['総再生時間', watchAmount(current.watchMin), monthLabel, previous ? delta(current.watchMin, previous.watchMin, '前月比') : null],
       ['平均視聴維持率', pct(current.retention, 1), '視聴回数加重', previous ? { label: ((current.retention - previous.retention) >= 0 ? '↑ +' : '↓ ') + Math.abs(current.retention - previous.retention).toFixed(1) + 'pt 前月差', state: current.retention > previous.retention ? 'up' : current.retention < previous.retention ? 'down' : '' } : null],
       ['登録者純増', (current.netSubs >= 0 ? '+' : '') + nf(current.netSubs), monthLabel, previous ? signedDelta(current.netSubs, previous.netSubs, '前月差') : null],
       ['概要欄遷移数', current.sessions == null ? '—' : nf(current.sessions), current.sessions == null ? '計測前' : monthLabel, previous && previous.sessions != null ? delta(current.sessions, previous.sessions, '前月比') : null],
       ['問い合わせ数', current.inquiries == null ? '—' : nf(current.inquiries), current.inquiries == null ? '計測前' : 'CV_求職者all', previous && previous.inquiries != null ? delta(current.inquiries, previous.inquiries, '前月比') : null]
-    ])));
+    ]));
+    summaryCard.id = 'monthly-conclusion'; host.appendChild(summaryCard);
+
+    var earlyViewRate = previous && previous.views ? (current.views - previous.views) / previous.views * 100 : null;
+    var earlyWatchRate = previous && previous.watchMin ? (current.watchMin - previous.watchMin) / previous.watchMin * 100 : null;
+    var earlyAvgSec = current.views ? current.watchMin * 60 / current.views : 0;
+    var earlyPreviousAvgSec = previous && previous.views ? previous.watchMin * 60 / previous.views : 0;
+    var verdict = earlyViewRate != null && earlyViewRate >= 0 && earlyWatchRate < 0
+      ? 'リーチは伸びましたが、視聴の深さと登録者獲得が弱まりました。次月は再生数より「深く見られ、概要欄へ進む企画」を優先します。'
+      : earlyViewRate != null && earlyViewRate < 0
+        ? '視聴機会が減っています。まず企画・タイトル・配信面の再現性を立て直し、そのうえで概要欄送客を改善します。'
+        : '視聴成果を維持しながら、概要欄遷移と問い合わせまでつながる企画・導線を検証します。';
+    host.appendChild(card('エグゼクティブ結論', '対象月の最優先論点', el('<div class="executive-verdict"><p class="verdict">' + esc(verdict) + '</p><p class="basis">根拠：視聴 ' + (earlyViewRate == null ? '比較不可' : (earlyViewRate >= 0 ? '+' : '') + earlyViewRate.toFixed(1) + '%') + '／総再生時間 ' + (earlyWatchRate == null ? '比較不可' : (earlyWatchRate >= 0 ? '+' : '') + earlyWatchRate.toFixed(1) + '%') + '／平均視聴時間概算 ' + Math.round(earlyPreviousAvgSec) + '秒→' + Math.round(earlyAvgSec) + '秒。仮説は施策後の再計測で検証します。</p></div>')));
 
     var compareRows = [previous, current].filter(Boolean);
     var compareCols = [
@@ -1408,7 +1466,20 @@
       { key: 'inquiries', head: '問い合わせ数', num: true, render: function (g) { return g.inquiries == null ? '—<span class="mom">計測前</span>' : esc(nf(g.inquiries)); } },
       { key: 'sessionPerK', head: '送客 / 1,000視聴', num: true, render: function (g) { return g.sessionPerK == null ? '—' : esc(nf(g.sessionPerK)); } }
     ];
-    host.appendChild(card('月次KPI比較', '対象月と前月を横並びで確認します。', sortableTable(compareCols, compareRows, { defaultSort: 'period' })));
+    var kpiCard = card('月次KPI比較', '対象月と前月を横並びで確認します。', sortableTable(compareCols, compareRows, { defaultSort: 'period' }));
+    kpiCard.id = 'monthly-kpi'; host.appendChild(kpiCard);
+
+    var retentionChange = previous ? current.retention - previous.retention : null;
+    var subPerK = current.views ? current.netSubs / current.views * 1000 : 0;
+    var previousSubPerK = previous && previous.views ? previous.netSubs / previous.views * 1000 : 0;
+    var inquiryRateText = current.sessions ? pct(current.inquiries / current.sessions * 100, 1) : '—';
+    var funnelCard = card('ファネル診断', 'CVまでの各段階を分け、最初に弱い箇所から改善します。', el('<div class="funnel-diagnosis">' +
+      '<div class="stage-card ' + (earlyViewRate != null && earlyViewRate >= 0 ? 'good' : 'bad') + '"><span class="stage-no">STEP 1</span><strong>リーチ</strong><div class="stage-value">' + esc(compact(current.views)) + '</div><div class="stage-note">視聴回数 ' + (earlyViewRate == null ? '比較不可' : (earlyViewRate >= 0 ? '+' : '') + earlyViewRate.toFixed(1) + '% 前月比') + '</div></div>' +
+      '<div class="stage-card ' + (earlyWatchRate != null && earlyWatchRate < 0 ? 'bad' : 'good') + '"><span class="stage-no">STEP 2</span><strong>視聴深度</strong><div class="stage-value">' + esc(Math.round(earlyAvgSec) + '秒') + '</div><div class="stage-note">平均視聴時間概算。維持率 ' + (retentionChange == null ? '比較不可' : (retentionChange >= 0 ? '+' : '') + retentionChange.toFixed(1) + 'pt') + '</div></div>' +
+      '<div class="stage-card ' + (current.sessions != null && current.sessionPerK < 1 ? 'warn' : 'good') + '"><span class="stage-no">STEP 3</span><strong>概要欄遷移</strong><div class="stage-value">' + (current.sessions == null ? '—' : esc(nf(current.sessions))) + '</div><div class="stage-note">' + (current.sessionPerK == null ? '過去比較なし' : esc(nf(current.sessionPerK) + '件 / 1,000視聴')) + '</div></div>' +
+      '<div class="stage-card ' + (current.inquiries != null && current.inquiries < 3 ? 'warn' : 'good') + '"><span class="stage-no">STEP 4</span><strong>問い合わせ</strong><div class="stage-value">' + (current.inquiries == null ? '—' : esc(nf(current.inquiries))) + '</div><div class="stage-note">遷移セッション比 ' + esc(inquiryRateText) + '、3件未満は傾向判断を保留</div></div></div>' +
+      '<div class="diagnosis"><strong>ボトルネック仮説</strong>' + esc(earlyWatchRate < 0 ? '視聴回数より、1視聴あたりの深さと登録者獲得効率を優先確認。概要欄遷移は計測開始後の基準値として蓄積します。' : '送客と問い合わせの母数を増やし、企画別の差を検証できる状態を作ることが優先です。') + '</div>'));
+    funnelCard.id = 'monthly-funnel'; host.appendChild(funnelCard);
 
     var targetRows = ytDaily.filter(function (r) { return normDate(r.day).slice(0, 7) === current.start.slice(0, 7); });
     var weeks = aggregateRows(targetRows, 'week');
@@ -1423,7 +1494,8 @@
       { key: 'sessions', head: '概要欄遷移数', num: true, render: function (g) { return g.sessions == null ? '—' : esc(nf(g.sessions)); } },
       { key: 'inquiries', head: '問い合わせ数', num: true, render: function (g) { return g.inquiries == null ? '—' : esc(nf(g.inquiries)); } }
     ];
-    host.appendChild(card('対象月の週別推移', monthLabel + '内の日次データを週単位で集計しています。', sortableTable(weekCols, weeks, { defaultSort: 'period' })));
+    var weeklyCard = card('対象月の週別推移', monthLabel + '内の日次データを週単位で集計しています。', sortableTable(weekCols, weeks, { defaultSort: 'period' }));
+    weeklyCard.id = 'monthly-weekly'; host.appendChild(weeklyCard);
 
     var good = [], bad = [], hypotheses = [], actions = [];
     var viewRate = previous && previous.views ? (current.views - previous.views) / previous.views * 100 : null;
@@ -1463,7 +1535,22 @@
     host.appendChild(el('<div class="recommend-grid"><div class="recommend-block good"><h3>よかったこと' + helpIcon('よかったこと') + '</h3><ul>' + good.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
       '<div class="recommend-block caution"><h3>悪かったこと・注意点' + helpIcon('悪かったこと・注意点') + '</h3><ul>' + bad.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div></div>'));
     host.appendChild(card('考えられる要因', '数値の組み合わせから作った仮説であり、因果を断定するものではありません。', el('<ul class="actions">' + hypotheses.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>')));
-    host.appendChild(card('今後すべきこと', 'CVを増やすため、計測整備→送客改善→企画評価の順に実行します。', el('<ul class="actions">' + actions.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>')));
+    var alerts = [];
+    if (current.inquiries != null && current.inquiries < 3) alerts.push(['high', '高', 'CV母数が不足', '問い合わせは' + nf(current.inquiries) + 'イベント。動画企画の継続・停止をCVだけで決めません。']);
+    if (current.sessionPerK != null && current.sessionPerK < 1) alerts.push(['high', '高', '視聴から概要欄遷移が細い', '1,000視聴あたり' + nf(current.sessionPerK) + 'セッション。CTA・リンク位置・訴求の改善余地を優先確認します。']);
+    if (previous && subPerK < previousSubPerK) alerts.push(['medium', '中', '登録者獲得効率が低下', '1,000視聴あたり純増は' + nf(previousSubPerK) + '人→' + nf(subPerK) + '人です。']);
+    if (earlyWatchRate < 0) alerts.push(['medium', '中', '総再生時間が減少', '視聴回数と反対方向に動いています。短尺比率と動画別の平均視聴時間を切り分けます。']);
+    if (!alerts.length) alerts.push(['info', '情報', '重大な悪化シグナルなし', '次月も同じ定義で計測し、再現性を確認します。']);
+    var alertCard = card('重要アラート', 'CVインパクトと判断リスクが高い順です。', el('<div class="alert-list">' + alerts.map(function (a) { return '<div class="analysis-alert"><span class="severity ' + a[0] + '">' + a[1] + '</span><div><strong>' + esc(a[2]) + '</strong><p>' + esc(a[3]) + '</p></div></div>'; }).join('') + '</div>'));
+    alertCard.id = 'monthly-alerts'; host.appendChild(alertCard);
+    var actionPlan = [
+      ['3日以内', 'CTA・UTMを全件点検', '公開済み動画の概要欄リンクで agent-ch_desc と動画IDが欠けていないこと。'],
+      ['7日後', '送客導線を2本で比較', '概要欄遷移 / 1,000視聴が対象月基準 ' + (current.sessionPerK == null ? '—' : nf(current.sessionPerK)) + ' を上回るか。'],
+      ['毎週', '動画タイプ別に評価', '短尺・長尺それぞれで平均視聴時間と登録者純増 / 1,000視聴を比較。'],
+      ['月末', 'CVまで再判定', '問い合わせ3イベント以上ならテーマ・動画別の傾向を確認。未満なら送客を先行KPIとして継続。']
+    ];
+    var planCard = card('実行計画', '施策と判定条件をセットにし、やりっぱなしを防ぎます。', el('<div class="action-plan">' + actionPlan.map(function (a) { return '<div class="action-row"><span class="action-when">' + esc(a[0]) + '</span><strong>' + esc(a[1]) + '</strong><span class="action-check">判定：' + esc(a[2]) + '</span></div>'; }).join('') + '</div>'));
+    planCard.id = 'monthly-actions'; host.appendChild(planCard);
   }
 
   function timeAnalysis(rows, initialUnit, monthlyRows, gaData, monthlyGaData) {
