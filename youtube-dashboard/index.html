@@ -128,6 +128,18 @@
   .table-tools input { flex: 1 1 240px; min-width: 160px; font: inherit; padding: 6px 9px; border-radius: 8px;
                        border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); }
   .table-count { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .analysis-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 0 0 14px; }
+  .analysis-controls label { display: grid; gap: 4px; color: var(--muted); font-size: 11px; font-weight: 650; }
+  .analysis-controls select { min-height: 34px; min-width: 130px; }
+  .period-table td:first-child { white-space: nowrap; font-weight: 650; }
+  .partial { display: inline-block; margin-left: 5px; padding: 1px 5px; border-radius: 999px; background: var(--track); color: var(--muted); font-size: 10px; }
+  .analyze-video { margin-top: 6px; padding: 4px 8px; min-height: 28px; font-size: 11px; }
+  .video-detail { margin: 14px 0; border: 1px solid var(--series-1); }
+  .video-detail-head { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+  .video-detail-head img { width: 120px; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; background: var(--track); }
+  .video-detail-head h3 { margin: 0 0 5px; font-size: 15px; }
+  .video-detail-head p { margin: 0; }
+  .detail-loading { padding: 28px; text-align: center; color: var(--muted); }
   .pager { display: flex; justify-content: flex-end; align-items: center; gap: 9px; margin-top: 12px; }
   .pager span { color: var(--muted); font-size: 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -303,6 +315,12 @@
     '平均視聴時間': '動画別averageViewDurationです。1視聴あたりの平均視聴秒数を時分秒で表示します。',
     '登録者増加': 'その動画に帰属したsubscribersGainedです。登録解除はこの列から差し引いていません。',
     '登録者 / 1,000視聴': '動画に帰属した登録者増加数÷期間内視聴回数×1,000です。規模の異なる動画の登録獲得効率を比較します。',
+    '期間別パフォーマンス': 'YouTube Analyticsの日次データを日・暦週（月曜〜日曜）・暦月でまとめます。週や月の途中は「集計途中」と表示します。',
+    '動画詳細分析': '選択した1動画だけをYouTube Analytics APIへ再照会し、選択期間・前期間・日次推移を比較します。',
+    '登録者純増 / 1,000視聴': 'その動画の（登録者増加−登録解除）÷期間内視聴回数×1,000です。',
+    '集計期間': '週次は月曜〜日曜、月次は各暦月です。先頭・末尾が期間途中の場合は部分期間として表示します。',
+    '直近完了週': '選択期間内で月曜〜日曜がすべて揃った最新週です。集計途中の週は前週比較から除外します。',
+    '直近完了月': '選択期間内で月初から月末まで揃った最新月です。集計途中の月は前月比較から除外します。',
     'ページ': 'GA4のpagePathです。/nensyuagent本体または配下だけを対象にしています。',
     'PV': 'GA4のscreenPageViewsです。ページが表示された回数です。'
   };
@@ -342,6 +360,10 @@
     sec = Math.round(Number(sec) || 0);
     var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
     return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(s).padStart(2, '0');
+  }
+  function watchAmount(minutes) {
+    minutes = Number(minutes) || 0;
+    return minutes < 60 ? nf(Math.round(minutes)) + ' 分' : nf(Math.round(minutes / 60)) + ' 時間';
   }
   // GA4 は "20260829"、YouTube Analytics は "2026-08-29" を返す
   function normDate(v) {
@@ -541,6 +563,38 @@
     });
   }
 
+  function loadVideoDetail(videoId, detailHost) {
+    detailHost.classList.remove('hide');
+    detailHost.innerHTML = '<div class="detail-loading">動画データを取得しています…</div>';
+    detailHost.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    getJSON('/api/youtube-analytics?days=' + days + '&videoId=' + encodeURIComponent(videoId)).then(function (r) {
+      if (!r.ok) {
+        detailHost.innerHTML = '<div class="setup"><h2>動画詳細を取得できませんでした</h2><p>' + esc((r.body && r.body.message) || '通信エラー') + '</p></div>';
+        return;
+      }
+      var d = r.body, s = d.summary || {}, p = d.previousSummary || {}, v = d.video || {};
+      var net = (Number(s.subscribersGained) || 0) - (Number(s.subscribersLost) || 0);
+      var prevNet = (Number(p.subscribersGained) || 0) - (Number(p.subscribersLost) || 0);
+      var views = Number(s.views) || 0;
+      detailHost.innerHTML = '<div class="video-detail-head">' +
+        (v.thumbnail ? '<img src="' + esc(v.thumbnail) + '" alt="">' : '') + '<div><h3>' + esc(v.title || videoId) + '</h3>' +
+        '<p class="note">' + esc(d.period.startDate + ' 〜 ' + d.period.endDate) + ' ・ 最新' + esc(d.lagDays) + '日を除外</p>' +
+        '<p><a href="https://www.youtube.com/watch?v=' + esc(videoId) + '" target="_blank" rel="noopener">YouTubeで動画を開く ↗</a></p></div></div>';
+      detailHost.appendChild(tiles([
+        ['期間内視聴回数', compact(views), nf(views) + ' 回', delta(views, p.views)],
+        ['総再生時間', watchAmount(s.estimatedMinutesWatched), '選択期間', delta(s.estimatedMinutesWatched, p.estimatedMinutesWatched)],
+        ['平均視聴時間', hms(s.averageViewDuration), '1視聴あたり', delta(s.averageViewDuration, p.averageViewDuration)],
+        ['平均視聴維持率', pct(s.averageViewPercentage, 1), '期間全体の公式集計', delta(s.averageViewPercentage, p.averageViewPercentage)],
+        ['登録者純増', (net >= 0 ? '+' : '') + nf(net), '増加 ' + nf(s.subscribersGained) + ' / 解除 ' + nf(s.subscribersLost), delta(net, prevNet)],
+        ['登録者純増 / 1,000視聴', views ? nf(net / views * 1000) : '—', '動画の登録獲得効率']
+      ]));
+      if ((d.daily || []).length) detailHost.appendChild(card('動画詳細分析', '日次・暦週（月曜始まり）・暦月に切り替えられます。維持率は日次値の視聴回数加重参考値です。',
+        timeAnalysis(d.daily, days <= 28 ? 'day' : days <= 180 ? 'week' : 'month')));
+    }).catch(function (e) {
+      detailHost.innerHTML = '<div class="setup"><h2>動画詳細を取得できませんでした</h2><p>' + esc(e.message) + '</p></div>';
+    });
+  }
+
   // Basic認証がかかっている場合、fetch の 401 ではブラウザの認証ダイアログが出ない。
   // 同じURLを新しいタブで「ページとして」開けばダイアログが出て、以降は fetch も通る。
   function authCard(path) {
@@ -610,11 +664,10 @@
         ]));
     }
 
-    if (daily.length) {
-      host.appendChild(card('視聴回数の推移', 'YouTube Analytics の実視聴データ。確定に1〜2日かかるため直近' +
-        (ana.ok && ana.body.lagDays ? ana.body.lagDays : 2) + '日は含めません。45日を超える期間は週次合計。',
-        columnChart(dailyPoints(daily, 'day', 'views', '視聴回数'))));
-    }
+    if (daily.length) host.appendChild(card('期間別パフォーマンス',
+      '日次・暦週（月曜〜日曜）・暦月で切替。最新' + (ana.ok && ana.body.lagDays ? ana.body.lagDays : 2) +
+      '日は未確定のため含めません。維持率は視聴回数加重の参考値です。',
+      timeAnalysis(daily, days <= 28 ? 'day' : days <= 180 ? 'week' : 'month')));
 
     if (A && A.trafficSource && A.trafficSource.length) {
       var LABELS = {
@@ -651,7 +704,7 @@
         id: r.video, title: '非公開または削除済み動画', views: 0, unavailable: true
       });
       t.aViews = r.views; t.retention = r.averageViewPercentage; t.watchMin = r.estimatedMinutesWatched;
-      t.avgDuration = r.averageViewDuration; t.subs = r.subscribersGained;
+      t.avgDuration = r.averageViewDuration; t.subs = r.subscribersGained; t.subsLost = r.subscribersLost;
     });
     var merged = Object.keys(byId).map(function (k) { return byId[k]; });
 
@@ -673,7 +726,8 @@
       { key: 'title', head: '動画', render: function (r) {
         return (r.unavailable ? '<span class="note">' + esc(r.title) + '</span>' :
           '<a href="https://www.youtube.com/watch?v=' + esc(r.id) + '" target="_blank" rel="noopener">' + esc(r.title) + '</a>') +
-          (r.isShort ? ' <span class="note">（60秒以下）</span>' : ''); } },
+          (r.isShort ? ' <span class="note">（60秒以下）</span>' : '') +
+          (!r.unavailable && A ? '<br><button class="btn analyze-video" type="button" data-video-id="' + esc(r.id) + '">この動画を分析</button>' : ''); } },
       { key: 'publishedAt', head: '公開日', render: function (r) { return esc(r.publishedAt ? normDate(r.publishedAt.slice(0, 10)) : '—'); } },
       { key: 'views', head: '累計再生回数', num: true, render: function (r) { return esc(nf(r.views)); } }
     ];
@@ -682,12 +736,22 @@
       { key: 'retention', head: '維持率', num: true, render: function (r) { return esc(r.retention == null ? '—' : pct(r.retention, 1)); } },
       { key: 'avgDuration', head: '平均視聴時間', num: true, render: function (r) { return esc(r.avgDuration == null ? '—' : hms(r.avgDuration)); } },
       { key: 'subs', head: '登録者増加', num: true, render: function (r) { return esc(r.subs == null ? '—' : nf(r.subs)); } },
+      { key: 'netSubs', head: '登録者純増', num: true, render: function (r) { return esc(r.netSubs == null ? '—' : (r.netSubs >= 0 ? '+' : '') + nf(r.netSubs)); } },
       { key: 'subsPerK', head: '登録者 / 1,000視聴', num: true, render: function (r) { return esc(r.subsPerK == null ? '—' : nf(r.subsPerK)); } }
     ]);
-    merged.forEach(function (r) { r.subsPerK = r.aViews ? Number(r.subs || 0) / Number(r.aViews) * 1000 : null; });
-    host.appendChild(card('動画別（' + nf(merged.length) + '本）',
-      '初期表示は期間内視聴回数の上位20件。検索・形式・列見出しで絞り込めます。',
-      sortableTable(cols, merged, { explore: true, pageSize: 20, defaultSort: A ? 'aViews' : 'views' })));
+    merged.forEach(function (r) {
+      r.netSubs = r.aViews == null ? null : Number(r.subs || 0) - Number(r.subsLost || 0);
+      r.subsPerK = r.aViews ? Number(r.subs || 0) / Number(r.aViews) * 1000 : null;
+    });
+    var detailHost = el('<div class="card video-detail hide" aria-live="polite"></div>');
+    host.appendChild(detailHost);
+    var videoTable = sortableTable(cols, merged, { explore: true, pageSize: 20, defaultSort: A ? 'aViews' : 'views' });
+    videoTable.addEventListener('click', function (e) {
+      var button = e.target.closest && e.target.closest('.analyze-video');
+      if (button) loadVideoDetail(button.dataset.videoId, detailHost);
+    });
+    host.appendChild(card('動画別（期間内視聴 上位' + nf(merged.length) + '本）',
+      'YouTube Analyticsが返す期間内視聴上位200本まで。「この動画を分析」で推移と前期間を確認できます。', videoTable));
   }
 
   // =================== GA4 ===================
@@ -829,6 +893,85 @@
     }
   }
 
+  function dateUTC(s) { return new Date(normDate(s) + 'T00:00:00Z'); }
+  function isoUTC(d) { return d.toISOString().slice(0, 10); }
+  function bucketInfo(date, unit) {
+    var d = dateUTC(date), start = new Date(d), end = new Date(d);
+    if (unit === 'week') {
+      var offset = (d.getUTCDay() + 6) % 7;
+      start.setUTCDate(d.getUTCDate() - offset); end = new Date(start); end.setUTCDate(start.getUTCDate() + 6);
+      return { key: isoUTC(start), start: isoUTC(start), end: isoUTC(end) };
+    }
+    if (unit === 'month') {
+      start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+      end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+      return { key: isoUTC(start), start: isoUTC(start), end: isoUTC(end) };
+    }
+    return { key: normDate(date), start: normDate(date), end: normDate(date) };
+  }
+
+  function aggregateRows(rows, unit) {
+    var groups = {}, first = rows.length ? normDate(rows[0].day) : '', last = rows.length ? normDate(rows[rows.length - 1].day) : '';
+    rows.forEach(function (r) {
+      var b = bucketInfo(r.day, unit), g = groups[b.key];
+      if (!g) g = groups[b.key] = { period: b.key, start: b.start, end: b.end, views: 0, watchMin: 0, gained: 0, lost: 0, weightedRetention: 0, weightedDuration: 0 };
+      var views = Number(r.views) || 0;
+      g.views += views; g.watchMin += Number(r.estimatedMinutesWatched) || 0;
+      g.gained += Number(r.subscribersGained) || 0; g.lost += Number(r.subscribersLost) || 0;
+      g.weightedRetention += (Number(r.averageViewPercentage) || 0) * views;
+      g.weightedDuration += (Number(r.averageViewDuration) || 0) * views;
+    });
+    return Object.keys(groups).sort().map(function (k) {
+      var g = groups[k]; g.netSubs = g.gained - g.lost;
+      g.retention = g.views ? g.weightedRetention / g.views : 0;
+      g.avgDuration = g.views ? g.weightedDuration / g.views : 0;
+      g.partial = (first && first > g.start) || (last && last < g.end);
+      return g;
+    });
+  }
+
+  function timeAnalysis(rows, initialUnit) {
+    var host = el('<div></div>');
+    var controls = el('<div class="analysis-controls">' +
+      '<label>集計単位<select data-role="unit"><option value="day">日次</option><option value="week">週次</option><option value="month">月次</option></select></label>' +
+      '<label>表示指標<select data-role="metric"><option value="views">視聴回数</option><option value="watchMin">総再生時間</option><option value="retention">平均視聴維持率（参考）</option></select></label></div>');
+    var compareHost = el('<div></div>'), chartHost = el('<div></div>'), tableHost = el('<div></div>');
+    controls.querySelector('[data-role="unit"]').value = initialUnit || 'week';
+    function draw() {
+      var unit = controls.querySelector('[data-role="unit"]').value;
+      var metric = controls.querySelector('[data-role="metric"]').value;
+      var grouped = aggregateRows(rows, unit);
+      var labels = { views: '視聴回数', watchMin: '総再生時間（分）', netSubs: '登録者純増', retention: '平均視聴維持率（視聴回数加重）' };
+      chartHost.innerHTML = '';
+      compareHost.innerHTML = '';
+      var complete = grouped.filter(function (g) { return !g.partial; });
+      if (unit !== 'day' && complete.length >= 2) {
+        var latest = complete[complete.length - 1], previous = complete[complete.length - 2];
+        compareHost.appendChild(tiles([
+          ['直近完了' + (unit === 'week' ? '週' : '月') + ' 視聴回数', compact(latest.views), latest.start + ' 〜 ' + latest.end, delta(latest.views, previous.views)],
+          ['直近完了' + (unit === 'week' ? '週' : '月') + ' 総再生時間', watchAmount(latest.watchMin), '前期間と比較', delta(latest.watchMin, previous.watchMin)],
+          ['直近完了' + (unit === 'week' ? '週' : '月') + ' 登録者純増', (latest.netSubs >= 0 ? '+' : '') + nf(latest.netSubs), '前期間 ' + (previous.netSubs >= 0 ? '+' : '') + nf(previous.netSubs), delta(latest.netSubs, previous.netSubs)]
+        ]));
+      }
+      chartHost.appendChild(columnChart(grouped.map(function (g) {
+        var label = unit === 'day' ? g.start : g.start + ' 〜 ' + g.end;
+        return { label: label, short: unit === 'month' ? g.start.slice(0, 7) : g.start.slice(5), value: Number(g[metric]) || 0,
+          tip: '<b>' + esc(label) + (g.partial ? '（集計途中）' : '') + '</b><span class="r">' + esc(labels[metric]) + ' ' +
+            esc(metric === 'retention' ? pct(g[metric], 1) : nf(Math.round(g[metric]))) + '</span>' };
+      }), { axisFormat: metric === 'retention' ? function (v) { return pct(v, 0); } : compact }));
+      var cols = [
+        { key: 'period', head: '集計期間', render: function (g) { return esc(unit === 'day' ? g.start : g.start + ' 〜 ' + g.end) + (g.partial ? '<span class="partial">集計途中</span>' : ''); } },
+        { key: 'views', head: '視聴回数', num: true, render: function (g) { return esc(nf(g.views)); } },
+        { key: 'watchMin', head: '総再生時間', num: true, render: function (g) { return esc(watchAmount(g.watchMin)); } },
+        { key: 'retention', head: '維持率', num: true, render: function (g) { return esc(pct(g.retention, 1)); } },
+        { key: 'netSubs', head: '登録者純増', num: true, render: function (g) { return esc((g.netSubs >= 0 ? '+' : '') + nf(g.netSubs)); } }
+      ];
+      tableHost.innerHTML = ''; tableHost.appendChild(sortableTable(cols, grouped, { defaultSort: 'period' }));
+    }
+    controls.addEventListener('change', draw); host.appendChild(controls); host.appendChild(compareHost); host.appendChild(chartHost); host.appendChild(tableHost); draw();
+    return host;
+  }
+
   // =================== 読み込み ===================
   function loadAll() {
     days = parseInt(document.getElementById('range').value, 10) || 90;
@@ -906,3 +1049,7 @@
 </script>
 </body>
 </html>
+    .analysis-controls label { flex: 1 1 130px; }
+    .analysis-controls select { width: 100%; min-width: 0; }
+    .video-detail-head { align-items: flex-start; }
+    .video-detail-head img { width: 92px; }

@@ -8,6 +8,7 @@ const { requireAuth } = require('./_auth.js');
 
 const BASE = 'https://youtubeanalytics.googleapis.com/v2/reports';
 const CHANNEL_RE = /^UC[A-Za-z0-9_-]{22}$/;
+const VIDEO_RE = /^[A-Za-z0-9_-]{11}$/;
 const DEFAULT_CHANNEL = 'UCwrivK-bKlDu6ZJzC01GPBw';
 // YouTube Analytics は1〜2日遅れて確定する。直前まで取ると最新の数日だけ不当に低く出て、
 // 推移グラフが「落ちている」ように誤読される。確定している分だけを対象にする。
@@ -33,7 +34,7 @@ const REPORTS = {
   },
   video: {
     dimensions: 'video',
-    metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,likes,comments',
+    metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,likes,comments',
     sort: '-views',
     maxResults: 200,
   },
@@ -96,6 +97,7 @@ module.exports = async (req, res) => {
   const refresh = process.env.YOUTUBE_REFRESH_TOKEN;
   const url = new URL(req.url, 'http://localhost');
   const channelId = url.searchParams.get('channelId') || process.env.YOUTUBE_CHANNEL_ID || DEFAULT_CHANNEL;
+  const videoId = url.searchParams.get('videoId') || '';
   const days = Math.min(Math.max(parseInt(url.searchParams.get('days'), 10) || 90, 1), 730);
 
   if (!clientId || !clientSecret || !refresh) {
@@ -108,6 +110,9 @@ module.exports = async (req, res) => {
   }
   if (!CHANNEL_RE.test(channelId)) {
     return send(res, 400, { error: 'bad_channel_id', message: 'チャンネルIDの形式が不正です。' });
+  }
+  if (videoId && !VIDEO_RE.test(videoId)) {
+    return send(res, 400, { error: 'bad_video_id', message: '動画IDの形式が不正です。' });
   }
 
   // APIのstart/endは両端を含む。選択日数と実データ日数を一致させる。
@@ -130,6 +135,32 @@ module.exports = async (req, res) => {
         message: 'OAuthで承認したGoogleアカウントは、対象のYouTubeチャンネルを所有していません。',
         channelId,
         authorizedChannelIds,
+      });
+    }
+
+    // 動画詳細は選択された1本だけを都度取得し、全動画×日数の巨大レスポンスを避ける。
+    if (videoId) {
+      const metrics = REPORTS.video.metrics;
+      async function videoReport(from, to, dimensions) {
+        const params = {
+          ids: 'channel==MINE', startDate: from, endDate: to,
+          filters: `video==${videoId}`, metrics,
+        };
+        if (dimensions) Object.assign(params, { dimensions, sort: dimensions });
+        const payload = await authedFetch(`${BASE}?${new URLSearchParams(params)}`, token, { method: 'GET' });
+        return toRows(payload);
+      }
+      const [summaryRows, dailyRows, previousRows, metadata] = await Promise.all([
+        videoReport(startDate, endDate),
+        videoReport(startDate, endDate, 'day'),
+        videoReport(previousStartDate, previousEndDate),
+        fetchVideoMetadata(token, [{ video: videoId }]),
+      ]);
+      return send(res, 200, {
+        fetchedAt: new Date().toISOString(), channelId, videoId, lagDays: LAG_DAYS,
+        period: { startDate, endDate, previousStartDate, previousEndDate, days },
+        summary: summaryRows[0] || {}, previousSummary: previousRows[0] || {},
+        daily: dailyRows, video: metadata[0] || { id: videoId },
       });
     }
 
