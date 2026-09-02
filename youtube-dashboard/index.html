@@ -192,12 +192,15 @@
   .diagnosis strong { display: block; margin-bottom: 4px; }
   .measurement-note { display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: 10px; color: var(--muted); font-size: 11px; }
   .recommend-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-  .recommend-block { border: 1px solid var(--line); border-radius: 10px; padding: 15px; background: var(--surface-2); }
+  .recommend-block { border: 1px solid var(--border); border-radius: 10px; padding: 15px; background: var(--surface-1); }
   .recommend-block h3 { margin: 0 0 8px; font-size: 15px; }
   .recommend-block ul { margin: 8px 0 0; padding-left: 20px; }
   .recommend-block li { margin: 7px 0; line-height: 1.55; }
-  .recommend-block.good { border-left: 4px solid var(--ok); }
-  .recommend-block.caution { border-left: 4px solid var(--warn); }
+  .recommend-block.good { border-left: 4px solid var(--series-3); }
+  .recommend-block.caution { border-left: 4px solid var(--warn-line); }
+  .ideas-table { position: relative; }
+  .ideas-table::after { content: '横にスクロールできます →'; position: sticky; left: 8px; display: inline-block; margin: 5px 0; color: var(--muted); font-size: 10px; }
+  .ideas-table th:first-child, .ideas-table td:first-child { position: sticky; left: 0; z-index: 3; min-width: 210px; background: var(--surface-1); box-shadow: 5px 0 8px rgba(0,0,0,.05); }
   .evidence { color: var(--muted); font-size: 11px; }
   .mom { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; white-space: nowrap; }
   .mom.up { color: var(--ok); }
@@ -239,9 +242,9 @@
     <p class="nav-label">ダッシュボード</p>
     <div class="tabs" role="tablist" aria-label="分析メニュー">
       <button class="tab" role="tab" aria-selected="true" data-tab="overview">概要</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="ideas">改善提案</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="yt">YouTube分析</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="ga">サイト送客・CV</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="ideas">改善提案</button>
     </div>
   </nav>
 </aside>
@@ -337,10 +340,13 @@
     '動画別': '公開動画情報とYouTube Analyticsを動画IDで結合しています。初期表示は期間内視聴回数の上位20件です。',
     '視聴回数 トップ3': '選択期間のYouTube Analytics viewsが多い3動画です。動画の公開時期が異なるため初速比較ではありません。',
     '今やること': '前期間比、サイト送客率、登録者獲得効率からルールベースで生成した確認候補です。因果関係を断定するものではありません。',
-    '改善提案サマリー': '動画別の今期間と直前同日数、視聴維持率、登録者効率、GA4のセッション帰属問い合わせを結合したルールベース分析です。',
-    '伸びた動画': '今期間500視聴以上で、直前の同日数より視聴数が増えた動画です。前期間データがない新規動画は1,000視聴以上を対象にします。',
-    '伸びなかった動画': '直前期間500視聴以上から視聴数が減った動画です。季節性や公開時期は補正していないため、廃止ではなく再設計候補として扱います。',
-    'CVした動画': 'utm_idにより動画へセッション帰属したCV_求職者allイベントが1件以上ある動画です。直接因果やユニークリード数ではありません。',
+    '改善提案サマリー': '動画別の今期間と直前同日数、視聴維持率、登録者効率、GA4のセッション帰属問い合わせを結合したルールベース分析です。テーマはタイトル語、尺帯は動画時間から自動で仮分類しています。',
+    '既存動画の伸長候補': '両期間の上位200本に入り、今期間500視聴以上、前期間100視聴以上、かつ20%以上・100視聴以上増えた動画です。',
+    '新規動画の初動候補': '今期間に公開され、今期間1,000視聴以上の動画です。既存動画の前期間比とは分けて評価します。',
+    '再設計候補': '両期間の上位200本に入り、前期間500視聴以上、かつ20%以上・100視聴以上減った動画です。廃止判断ではなく、要因を切り分ける候補です。',
+    '問い合わせイベント帰属動画': 'utm_idにより動画へセッション帰属したCV_求職者allイベントが1件以上ある動画です。直接因果やユニークリード数ではありません。',
+    '上位200 視聴カバレッジ': '選択期間の全視聴回数のうち、動画別レポート上位200本の視聴回数が占める割合です。',
+    '比較不能の低下候補': '前期間は上位200本に入り500視聴以上だった一方、今期間は上位200本の圏外で、正確な減少幅を比較できない動画数です。',
     'セッションの推移': 'GA4のsessionsを日別表示します。45日を超える場合は7日単位で合計します。',
     'YouTube概要欄 遷移の推移': 'sessionManualAdContentが「agent-ch_desc」のGA4セッションを日別表示します。',
     '動画別 セッション帰属問い合わせ': 'utm_idを格納するsessionManualCampaignIdを動画IDとしてセッション単位で集計します。別端末・後日の直接再訪・UTM未設定分は動画へ帰属できません。',
@@ -1089,6 +1095,19 @@
     return 'その他';
   }
 
+  function durationSeconds(value) {
+    if (typeof value === 'number') return value;
+    var m = String(value || '').match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+    return m ? (Number(m[1]) || 0) * 3600 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0) : null;
+  }
+
+  function median(values) {
+    values = values.filter(function (v) { return v != null && isFinite(v); }).sort(function (a, b) { return a - b; });
+    if (!values.length) return null;
+    var mid = Math.floor(values.length / 2);
+    return values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
+  }
+
   function renderIdeas() {
     var host = document.getElementById('ideas-body');
     var ana = dashboardState.ana, ga = dashboardState.ga;
@@ -1101,20 +1120,25 @@
     var current = ana.body.reports.video || [], previous = ana.body.previousVideo || [];
     var metadata = ana.body.videoMetadata || [], names = {}, metaById = {}, prevById = {}, currentById = {}, gaById = {};
     metadata.forEach(function (v) { names[v.id] = v.title || v.id; metaById[v.id] = v; });
-    if (dashboardState.pub && dashboardState.pub.ok) (dashboardState.pub.body.videos || []).forEach(function (v) { names[v.id] = v.title || v.id; });
+    if (dashboardState.pub && dashboardState.pub.ok) (dashboardState.pub.body.videos || []).forEach(function (v) {
+      names[v.id] = v.title || v.id;
+      metaById[v.id] = Object.assign({}, metaById[v.id] || {}, v);
+    });
     previous.forEach(function (v) { prevById[v.video] = v; });
     current.forEach(function (v) { currentById[v.video] = v; });
     if (ga.ok) (ga.body.byVideo || []).forEach(function (v) { gaById[v.sessionManualCampaignId] = v; });
 
     var ids = {};
     current.concat(previous).forEach(function (v) { ids[v.video] = true; });
-    Object.keys(gaById).forEach(function (id) { ids[id] = true; });
+    Object.keys(gaById).filter(function (id) { return /^[A-Za-z0-9_-]{11}$/.test(id); }).forEach(function (id) { ids[id] = true; });
     var rows = Object.keys(ids).map(function (id) {
       var hasCurrent = !!currentById[id], hasPrevious = !!prevById[id];
       var c = currentById[id] || {}, p = prevById[id] || {};
       var views = hasCurrent ? Number(c.views) || 0 : null, prevViews = hasPrevious ? Number(p.views) || 0 : null;
       var gained = Number(c.subscribersGained) || 0, lost = Number(c.subscribersLost) || 0;
       var publishedAt = (metaById[id] || {}).publishedAt || '';
+      var seconds = durationSeconds((metaById[id] || {}).seconds != null ? (metaById[id] || {}).seconds : (metaById[id] || {}).duration);
+      var lengthBand = seconds == null ? '尺不明' : seconds <= 60 ? '60秒以下' : seconds <= 180 ? '61〜180秒' : '181秒以上';
       return { id: id, title: names[id] || id, views: views, previousViews: prevViews,
         viewDiff: hasCurrent && hasPrevious ? views - prevViews : null,
         viewRate: hasCurrent && hasPrevious && prevViews ? (views - prevViews) / prevViews : null,
@@ -1122,52 +1146,64 @@
         retention: c.averageViewPercentage == null ? null : Number(c.averageViewPercentage),
         netSubs: hasCurrent ? gained - lost : null, subsPerK: views ? (gained - lost) / views * 1000 : null,
         sessions: Number((gaById[id] || {}).sessions) || 0, inquiries: Number((gaById[id] || {}).inquiries) || 0,
-        topic: topicLabel(names[id] || '') };
+        topic: topicLabel(names[id] || ''), lengthBand: lengthBand };
     });
-    var strong = rows.filter(function (v) { return v.views >= 500 && (v.viewDiff > 0 || (v.isNew && v.views >= 1000)); })
-      .sort(function (a, b) { return (b.viewDiff == null ? b.views : b.viewDiff) - (a.viewDiff == null ? a.views : a.viewDiff); }).slice(0, 8);
-    var weak = rows.filter(function (v) { return v.views != null && v.previousViews != null && v.previousViews >= 500 && v.viewDiff < 0; })
-      .sort(function (a, b) { return a.viewDiff - b.viewDiff; }).slice(0, 8);
+    var strongAll = rows.filter(function (v) { return v.views >= 500 && v.previousViews >= 100 && v.viewDiff >= 100 && v.viewRate >= 0.2; })
+      .sort(function (a, b) { return b.viewDiff - a.viewDiff; });
+    var newHitsAll = rows.filter(function (v) { return v.isNew && v.views >= 1000; }).sort(function (a, b) { return b.views - a.views; });
+    var weakAll = rows.filter(function (v) { return v.views != null && v.previousViews != null && v.previousViews >= 500 && v.viewDiff <= -100 && v.viewRate <= -0.2; })
+      .sort(function (a, b) { return a.viewDiff - b.viewDiff; });
+    var strong = strongAll.slice(0, 8), newHits = newHitsAll.slice(0, 8), weak = weakAll.slice(0, 8);
+    var dropComparisonUnknown = rows.filter(function (v) { return v.views == null && v.previousViews >= 500; }).length;
+    var totalPeriodViews = Number(((ana.body.reports.summary || [])[0] || {}).views) || 0;
+    var coveredViews = current.reduce(function (n, v) { return n + (Number(v.views) || 0); }, 0);
+    var analyticsCoverage = totalPeriodViews ? coveredViews / totalPeriodViews : 0;
     var converted = rows.filter(function (v) { return v.inquiries > 0; }).sort(function (a, b) { return b.inquiries - a.inquiries; });
 
     var topicMap = {};
     rows.filter(function (v) { return v.views != null && v.views > 0; }).forEach(function (v) {
-      var t = topicMap[v.topic] || (topicMap[v.topic] = { topic: v.topic, videos: 0, views: 0, sessions: 0, inquiries: 0, retentionWeight: 0 });
+      var topicKey = v.topic + '｜' + v.lengthBand;
+      var t = topicMap[topicKey] || (topicMap[topicKey] = { topic: v.topic, lengthBand: v.lengthBand, videos: 0, views: 0, viewValues: [], sessions: 0, inquiries: 0, retentionWeight: 0, retentionViews: 0 });
       t.videos += 1; t.views += v.views; t.sessions += v.sessions; t.inquiries += v.inquiries;
-      t.retentionWeight += (v.retention || 0) * v.views;
+      t.viewValues.push(v.views);
+      if (v.retention != null) { t.retentionWeight += v.retention * v.views; t.retentionViews += v.views; }
     });
     var topics = Object.keys(topicMap).map(function (k) {
-      var t = topicMap[k]; t.avgViews = t.videos ? t.views / t.videos : 0; t.retention = t.views ? t.retentionWeight / t.views : 0; return t;
-    }).filter(function (t) { return t.videos >= 2; }).sort(function (a, b) { return b.avgViews - a.avgViews; });
+      var t = topicMap[k]; t.medianViews = median(t.viewValues); t.retention = t.retentionViews ? t.retentionWeight / t.retentionViews : null; return t;
+    }).filter(function (t) { return t.videos >= 5; }).sort(function (a, b) { return b.medianViews - a.medianViews; });
     var bestTopic = topics[0], lowestTopic = topics.length > 1 ? topics[topics.length - 1] : null;
 
     host.appendChild(card('改善提案サマリー',
-      '選択期間と直前の同日数を動画IDで比較。CVはutm_idによるセッション帰属イベントで、因果やユニークリードを示すものではありません。',
+      '対象 ' + ana.body.period.startDate + '〜' + ana.body.period.endDate + '／比較 ' + ana.body.period.previousStartDate + '〜' + ana.body.period.previousEndDate +
+      '。各期間のAnalytics上位200本を比較するため、圏外動画は比較しません。テーマはタイトル語、尺帯は動画時間による自動仮分類です。CVはセッション帰属イベントです。',
       tiles([
-        ['伸びた動画', nf(strong.length) + '本', '500視聴以上かつ前期間から増加'],
-        ['伸びなかった動画', nf(weak.length) + '本', '前期間500視聴以上から減少'],
-        ['CVした動画', nf(converted.length) + '本', '問い合わせイベントが帰属'],
-        ['分析対象', nf(current.length) + '本', 'YouTube Analytics上位200本']
+        ['伸長を再検証する動画', nf(strongAll.length) + '本', '上位8本を表示'],
+        ['新規動画の初動候補', nf(newHitsAll.length) + '本', '上位8本を表示'],
+        ['再設計して検証する動画', nf(weakAll.length) + '本', '上位8本を表示'],
+        ['問い合わせ帰属動画', nf(converted.length) + '本', '問い合わせイベントがセッション帰属'],
+        ['上位200 視聴カバレッジ', pct(analyticsCoverage * 100, 1), '期間総視聴に占める割合'],
+        ['比較不能の低下候補', nf(dropComparisonUnknown) + '本', '前期上位200・今期圏外'],
+        ['新UTM内 動画IDカバレッジ', ga.ok ? pct(((ga.body.utmCoverage || {}).rate || 0) * 100, 1) : '—', '計測できた動画IDの割合']
       ])));
 
     var goodItems = [];
-    if (bestTopic) goodItems.push('「' + bestTopic.topic + '」を優先。1本平均' + nf(Math.round(bestTopic.avgViews)) + '視聴、加重維持率' + pct(bestTopic.retention, 1) + 'です。');
-    if (strong[0]) goodItems.push('伸長最大の「' + strong[0].title + '」を横展開。' +
-      (strong[0].viewDiff == null ? '今期間公開で' + nf(strong[0].views) + '視聴' : '前期間差' + (strong[0].viewDiff >= 0 ? '+' : '') + nf(strong[0].viewDiff) + '視聴') + 'です。');
-    if (converted[0]) goodItems.push('CV帰属のある「' + converted[0].title + '」のテーマ・概要欄CTA・導線を再利用。ただし現在の問い合わせは' + nf(converted[0].inquiries) + 'イベントのため追加検証が必要です。');
+    if (bestTopic) goodItems.push('仮説：「' + bestTopic.topic + ' × ' + bestTopic.lengthBand + '」を次の2本で追加検証。対象' + nf(bestTopic.videos) + '本の中央値は' + nf(Math.round(bestTopic.medianViews)) + '視聴' + (bestTopic.retention == null ? '' : '、加重維持率' + pct(bestTopic.retention, 1)) + 'です。');
+    if (newHits[0]) goodItems.push('新規初動候補：「' + newHits[0].title + '」は今期間' + nf(newHits[0].views) + '視聴。既存動画の伸長とは分け、同じ尺帯の次作で再現性を確認します。');
+    else if (strong[0]) goodItems.push('既存動画の伸長候補：「' + strong[0].title + '」は前期間差+' + nf(strong[0].viewDiff) + '視聴（' + pct(strong[0].viewRate * 100, 1) + '）。同じ切り口を1本だけ追加検証します。');
+    if (converted[0]) goodItems.push('CV仮説候補：「' + converted[0].title + '」に問い合わせ' + nf(converted[0].inquiries) + 'イベントが帰属。3イベントまたは30セッションに達するまでは横展開を断定しません。');
     if (!converted.length) goodItems.push('CV帰属動画がまだないため、上位動画へ統一CTAと正しいutm_idを設定して検証母数を作ります。');
     var avoidItems = [];
-    if (weak[0]) avoidItems.push('「' + weak[0].title + '」と同じ切り口は、そのまま再制作しない。前期間差' + nf(weak[0].viewDiff) + '視聴のため、タイトル・冒頭・尺を変えて再検証します。');
-    if (lowestTopic) avoidItems.push('「' + lowestTopic.topic + '」は優先度を下げる。1本平均' + nf(Math.round(lowestTopic.avgViews)) + '視聴で、対象カテゴリ内では最下位です。');
-    avoidItems.push('CVが付いていないだけで企画を即廃止しない。utm_id未設定や44セッションという小さい母数を先に確認します。');
-    host.appendChild(el('<div class="recommend-grid"><div class="recommend-block good"><h3>今後、出した方がよい動画</h3><ul>' +
+    if (weak[0]) avoidItems.push('要因確認：「' + weak[0].title + '」は前期間差' + nf(weak[0].viewDiff) + '視聴（' + pct(weak[0].viewRate * 100, 1) + '）。同じ企画を止める前に、公開時期・タイトル・冒頭・尺を切り分けます。');
+    if (lowestTopic) avoidItems.push('再設計仮説：「' + lowestTopic.topic + ' × ' + lowestTopic.lengthBand + '」は対象' + nf(lowestTopic.videos) + '本の中央値が' + nf(Math.round(lowestTopic.medianViews)) + '視聴。次回は訴求を変え、同条件で再測定します。');
+    avoidItems.push('問い合わせ未帰属だけで企画を廃止しません。現在の概要欄遷移は' + nf(ga.ok ? (ga.body.youtubeSummary || {}).sessions : 0) + 'セッションのため、まず計測母数を増やします。');
+    host.appendChild(el('<div class="recommend-grid"><div class="recommend-block good"><h3>次に検証する企画仮説</h3><ul>' +
       goodItems.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
-      '<div class="recommend-block caution"><h3>現状のまま増やさない方がよい動画</h3><ul>' +
+      '<div class="recommend-block caution"><h3>再設計して検証する企画</h3><ul>' +
       avoidItems.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div></div>'));
 
     function analysisTable(title, note, data) {
       var cols = [
-        { key: 'title', head: '動画', render: function (v) { return '<a href="https://www.youtube.com/watch?v=' + esc(v.id) + '" target="_blank" rel="noopener">' + esc(v.title) + '</a><span class="evidence">' + esc(v.topic) + '</span>'; } },
+        { key: 'title', head: '動画', render: function (v) { return '<a href="https://www.youtube.com/watch?v=' + esc(v.id) + '" target="_blank" rel="noopener">' + esc(v.title) + '</a><span class="evidence">' + esc(v.topic + '・' + v.lengthBand) + '</span>'; } },
         { key: 'views', head: '今期間視聴', num: true, render: function (v) { return esc(v.views == null ? '上位200外' : nf(v.views)); } },
         { key: 'previousViews', head: '前期間視聴', num: true, render: function (v) { return esc(v.previousViews == null ? (v.isNew ? '公開前' : '上位200外') : nf(v.previousViews)); } },
         { key: 'viewDiff', head: '視聴増減', num: true, render: function (v) { return esc(v.viewDiff == null ? '比較不可' : (v.viewDiff > 0 ? '+' : '') + nf(v.viewDiff)); } },
@@ -1176,14 +1212,18 @@
         { key: 'sessions', head: '概要欄遷移', num: true, render: function (v) { return esc(nf(v.sessions)); } },
         { key: 'inquiries', head: '問い合わせイベント', num: true, render: function (v) { return esc(nf(v.inquiries)); } }
       ];
-      host.appendChild(card(title, note, data.length ? sortableTable(cols, data, { defaultSort: title.indexOf('伸びなかった') >= 0 ? 'viewDiff' : 'views' }) : el('<p class="note">該当データなし</p>')));
+      var table = data.length ? sortableTable(cols, data, { defaultSort: title.indexOf('再設計') >= 0 ? 'viewDiff' : 'views' }) : el('<p class="note">該当データなし</p>');
+      if (data.length) table.classList.add('ideas-table');
+      host.appendChild(card(title, note, table));
     }
-    analysisTable('伸びた動画', '今期間500視聴以上で、直前の同日数より視聴が増えた動画。新規公開で1,000視聴以上も含みます。', strong);
-    analysisTable('伸びなかった動画', '直前期間500視聴以上から視聴が減った動画。公開本数や季節性による影響もあるため、廃止判断ではなく再設計候補です。', weak);
-    analysisTable('CVした動画', 'utm_idで動画へ帰属した問い合わせイベントが1件以上ある動画。セッション単位の帰属であり、直接因果ではありません。', converted);
+    analysisTable('既存動画の伸長候補', '両期間の上位200本に入り、今期間500視聴以上、かつ20%以上・100視聴以上増えた動画。初期表示は今期間視聴順です。', strong);
+    analysisTable('新規動画の初動候補', '今期間に公開され1,000視聴以上の動画。既存動画の前期間比とは分けて確認します。', newHits);
+    analysisTable('再設計候補', '両期間の上位200本に入り、前期間500視聴以上、かつ20%以上・100視聴以上減った動画。初期表示は減少幅順です。', weak);
+    analysisTable('問い合わせイベント帰属動画', 'utm_idで動画へ帰属した問い合わせイベントが1件以上ある動画。直接因果やユニークリード数ではありません。', converted);
   }
 
   var dashboardState = { pub: null, ana: null, ga: null, monthlyAna: null, monthlyGa: null };
+  var loadGeneration = 0;
 
   function renderOverview() {
     var host = document.getElementById('overview-data');
@@ -1345,9 +1385,13 @@
 
   // =================== 読み込み ===================
   function loadAll() {
+    var generation = ++loadGeneration;
     days = parseInt(document.getElementById('range').value, 10) || 90;
+    dashboardState.pub = null;
+    dashboardState.ana = null;
+    dashboardState.ga = null;
     ['yt', 'ga'].forEach(function (id) { setStatus(id, '確認中', ''); });
-    ['yt-body', 'ga-body'].forEach(function (id) {
+    ['yt-body', 'ga-body', 'ideas-body'].forEach(function (id) {
       document.getElementById(id).innerHTML = '<div class="skeleton" aria-label="読み込み中"></div><div class="skeleton" aria-hidden="true"></div>';
     });
 
@@ -1359,6 +1403,7 @@
       getJSON('/api/youtube?max=200').catch(softFail),
       getJSON('/api/youtube-analytics?days=' + days).catch(softFail)
     ]).then(function (res) {
+      if (generation !== loadGeneration) return;
       dashboardState.pub = res[0]; dashboardState.ana = res[1];
       renderYouTube(res[0], res[1]);
       if (dashboardState.ga) renderGA4(dashboardState.ga);
@@ -1367,6 +1412,7 @@
     });
 
     getJSON('/api/ga4?days=' + days).catch(softFail).then(function (r) {
+      if (generation !== loadGeneration) return;
       dashboardState.ga = r; renderGA4(r); renderOverview(); renderIdeas();
     });
 
@@ -1375,6 +1421,7 @@
         getJSON('/api/youtube-analytics?days=210').catch(softFail),
         getJSON('/api/ga4?days=210').catch(softFail)
       ]).then(function (res) {
+        if (generation !== loadGeneration) return;
         dashboardState.monthlyAna = res[0]; dashboardState.monthlyGa = res[1];
         if (dashboardState.pub && dashboardState.ana) renderYouTube(dashboardState.pub, dashboardState.ana);
         if (dashboardState.ga) renderGA4(dashboardState.ga);
