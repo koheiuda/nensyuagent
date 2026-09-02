@@ -10,6 +10,7 @@ const PATH_PREFIX = '/nensyuagent/';
 const INQUIRY_EVENT = 'CV_求職者all';
 const YOUTUBE_DESCRIPTION_CONTENT = 'agent-ch_desc';
 const YOUTUBE_CHANNEL_CONTENT_PREFIX = 'agent-ch_';
+const YOUTUBE_TAGGED_SOURCE_MEDIUM = 'youtube / video';
 const YOUTUBE_REFERRAL_SOURCE_MEDIUM = 'youtube.com / referral';
 // YouTube Analytics の確定遅延に合わせ、クロスチャネル比較は T-3 まで。
 const LAG_DAYS = 3;
@@ -36,15 +37,17 @@ function exactFilter(fieldName, value) {
 }
 
 function youtubeDescriptionFilter() {
-  return {
-    filter: { fieldName: 'sessionManualAdContent', stringFilter: { matchType: 'BEGINS_WITH', value: YOUTUBE_DESCRIPTION_CONTENT, caseSensitive: true } },
-  };
+  return andFilter([
+    exactFilter('sessionSourceMedium', YOUTUBE_TAGGED_SOURCE_MEDIUM),
+    { filter: { fieldName: 'sessionManualAdContent', stringFilter: { matchType: 'BEGINS_WITH', value: YOUTUBE_DESCRIPTION_CONTENT, caseSensitive: true } } },
+  ]);
 }
 
 function youtubeChannelFilter() {
-  return {
-    filter: { fieldName: 'sessionManualAdContent', stringFilter: { matchType: 'BEGINS_WITH', value: YOUTUBE_CHANNEL_CONTENT_PREFIX, caseSensitive: true } },
-  };
+  return andFilter([
+    exactFilter('sessionSourceMedium', YOUTUBE_TAGGED_SOURCE_MEDIUM),
+    { filter: { fieldName: 'sessionManualAdContent', stringFilter: { matchType: 'BEGINS_WITH', value: YOUTUBE_CHANNEL_CONTENT_PREFIX, caseSensitive: true } } },
+  ]);
 }
 
 function youtubeReferralFilter() {
@@ -230,7 +233,8 @@ module.exports = async (req, res) => {
     ]);
 
     // utm_id（sessionManualCampaignId）をYouTube動画IDとして、概要欄・固定コメント等の動画別送客を取得する。
-    const [byVideoSessions, byVideoInquiries, previousByVideoSessions, previousByVideoInquiries] = await Promise.all([runReport(propertyId, token, {
+    const [byVideoSessions, byVideoInquiries, previousByVideoSessions, previousByVideoInquiries,
+      byCampaignSessions, byCampaignInquiries] = await Promise.all([runReport(propertyId, token, {
       dateRanges, dimensions: [{ name: 'sessionManualCampaignId' }],
       metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
       dimensionFilter: youtubeChannelFilter(),
@@ -245,6 +249,12 @@ module.exports = async (req, res) => {
     }), runReport(propertyId, token, {
       dateRanges: previousDateRanges, dimensions: [{ name: 'sessionManualCampaignId' }], metrics: [{ name: 'eventCount' }],
       dimensionFilter: youtubeChannelInquiryFilter, limit: 200,
+    }), runReport(propertyId, token, {
+      dateRanges, dimensions: [{ name: 'sessionCampaignName' }], metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+      dimensionFilter: youtubeChannelFilter(), orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 50,
+    }), runReport(propertyId, token, {
+      dateRanges, dimensions: [{ name: 'sessionCampaignName' }], metrics: [{ name: 'eventCount' }],
+      dimensionFilter: youtubeChannelInquiryFilter, orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }], limit: 50,
     })]);
     const sessionsById = {}, usersById = {}, inquiriesById = {};
     const previousSessionsById = {}, previousUsersById = {}, previousInquiriesById = {};
@@ -268,6 +278,13 @@ module.exports = async (req, res) => {
       row.previousInquiries = previousInquiriesById[id] || 0;
       return row;
     }).sort(function (a, b) { return b.sessions - a.sessions || b.previousSessions - a.previousSessions; });
+    const campaignInquiryMap = {};
+    toRows(byCampaignInquiries).forEach(function (row) { campaignInquiryMap[row.sessionCampaignName] = row.eventCount; });
+    const byCampaign = toRows(byCampaignSessions).map(function (row) {
+      row.inquiries = campaignInquiryMap[row.sessionCampaignName] || 0;
+      row.sessionInquiryRate = row.sessions ? row.inquiries / row.sessions : 0;
+      return row;
+    });
     const utmCoverage = byVideo.reduce(function (out, row) {
       const valid = /^[A-Za-z0-9_-]{11}$/.test(row.sessionManualCampaignId || '');
       out.totalSessions += row.sessions || 0;
@@ -287,6 +304,7 @@ module.exports = async (req, res) => {
       inquiryEventName: INQUIRY_EVENT,
       youtubeDescriptionContent: YOUTUBE_DESCRIPTION_CONTENT,
       youtubeChannelContentPrefix: YOUTUBE_CHANNEL_CONTENT_PREFIX,
+      youtubeTaggedSourceMedium: YOUTUBE_TAGGED_SOURCE_MEDIUM,
       youtubeReferralSourceMedium: YOUTUBE_REFERRAL_SOURCE_MEDIUM,
       summary: toRows(summary.report)[0] || {},
       youtubeSummary: toRows(youtubeSummary.report)[0] || {},
@@ -316,6 +334,7 @@ module.exports = async (req, res) => {
       byPage: toRows(byPage),
       youtubeDaily: toRows(youtube.report),
       byVideo,
+      byCampaign,
       utmCoverage,
     });
   } catch (e) {

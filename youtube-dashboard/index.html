@@ -383,6 +383,7 @@
     '年収エージェントch UTM問い合わせ': 'agent-ch_* のセッションに帰属した「CV_求職者all」イベント数です。ユニークリード数ではありません。',
     '未タグ YouTube referral': 'sessionSourceMediumが「youtube.com / referral」のセッションです。UTMがないため、年収エージェントch・年収チャンネル・個別動画のどれかは特定できません。参考値として別枠表示します。',
     '計測範囲の内訳': '概要欄、固定コメント等を含むチャンネルUTM、UTMなしのYouTube referral、サイト全体CVを混同しないための内訳です。重複加算はしません。',
+    'キャンペーン別 UTM送客・問い合わせ': 'セッションの参照元/メディアを「youtube / video」に限定し、セッションのキャンペーン別にセッション数とCV_求職者allを集計します。GA4探索レポートと同じ確認軸です。',
     '概要欄遷移数': 'GA4のsessionManualAdContentが「agent-ch_desc」で始まるセッション数です。末尾に詳細値がある場合も含みます。YouTube上のリンククリック数ではありません。',
     '問い合わせ数': '概要欄遷移セッションに帰属した、GA4の「CV_求職者all」イベント数です。ユニークリード数ではありません。',
     '問い合わせイベント / セッション': '問い合わせ完了イベント数÷概要欄遷移セッション数です。ユニークユーザー単位のCVRではありません。',
@@ -1059,7 +1060,7 @@
       ['ユーザー', compact(totalUsers), '期間内アクティブユーザー（重複除外）', delta(totalUsers, ps.activeUsers)],
       ['ページビュー', compact(totalViews), '', delta(totalViews, ps.screenPageViews)],
       ['サイト全体 問い合わせイベント', nf(inquiryCount), '比較用（YouTube CVではありません）', delta(inquiryCount, previousInquiry.eventCount)],
-      ['年収エージェントch UTM遷移', nf(channelSessions), 'utm_content: ' + d.youtubeChannelContentPrefix + '*', delta(channelSessions, previousChannelSummary.sessions)],
+      ['年収エージェントch UTM遷移', nf(channelSessions), d.youtubeTaggedSourceMedium + ' × ' + d.youtubeChannelContentPrefix + '*', delta(channelSessions, previousChannelSummary.sessions)],
       ['年収エージェントch UTM問い合わせ', nf(channelInquiryCount), d.inquiryEventName, delta(channelInquiryCount, previousChannelInquiry.eventCount)],
       ['YouTube概要欄 遷移セッション', nf(ytSessions),
         'utm_content: ' + d.youtubeDescriptionContent, delta(ytSessions, pys.sessions)],
@@ -1096,6 +1097,19 @@
           '動画ごとの <code>utm_id</code> には11文字のYouTube動画IDを設定',
           'クリック後、GA4反映を待って再読み込み'
         ]));
+    }
+
+    if ((d.byCampaign || []).length) {
+      var campaignCols = [
+        { key: 'sessionCampaignName', head: 'セッションのキャンペーン' },
+        { key: 'sessions', head: 'セッション', num: true, render: function (x) { return esc(nf(x.sessions)); } },
+        { key: 'activeUsers', head: 'ユーザー', num: true, render: function (x) { return esc(nf(x.activeUsers)); } },
+        { key: 'inquiries', head: 'UTM帰属問い合わせ', num: true, render: function (x) { return esc(nf(x.inquiries)); } },
+        { key: 'sessionInquiryRate', head: '問い合わせイベント / セッション', num: true, render: function (x) { return esc(x.sessions < 10 ? '母数不足' : pct(x.sessionInquiryRate * 100, 2)); } }
+      ];
+      host.appendChild(card('キャンペーン別 UTM送客・問い合わせ',
+        'セッションの参照元/メディア=' + d.youtubeTaggedSourceMedium + ' で絞り、セッションのキャンペーンごとに確認します。',
+        sortableTable(campaignCols, d.byCampaign, { defaultSort: 'sessions' })));
     }
 
     if ((d.byVideo || []).length) {
@@ -1142,7 +1156,7 @@
         { key: 'inquiryPerK', head: '問い合わせ / 1,000視聴', num: true, render: function (x) { return esc(x.inquiryPerK == null ? '—' : nf(x.inquiryPerK)); } }
       ];
       host.appendChild(card('動画別 セッション帰属問い合わせ',
-        'utm_content=' + d.youtubeChannelContentPrefix + '*、utm_id=YouTube動画IDによるセッション単位の帰属です。概要欄・固定コメント等を含み、未タグ分は動画へ帰属できません。',
+        'セッションの参照元/メディア=' + d.youtubeTaggedSourceMedium + '、utm_content=' + d.youtubeChannelContentPrefix + '*、utm_id=YouTube動画IDによるセッション単位の帰属です。概要欄・固定コメント等を含みます。',
         sortableTable(vcols, d.byVideo, { defaultSort: 'sessions' })));
     }
 
