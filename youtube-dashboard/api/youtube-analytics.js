@@ -23,6 +23,9 @@ function send(res, status, body) {
 // サムネイルのインプレッション／CTRは Query API v2 の対象外（Reporting API のReachレポート）なので、
 // ここでは取得可能な指標だけを要求する。
 const REPORTS = {
+  summary: {
+    metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost',
+  },
   daily: {
     dimensions: 'day',
     metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost',
@@ -107,8 +110,11 @@ module.exports = async (req, res) => {
     return send(res, 400, { error: 'bad_channel_id', message: 'チャンネルIDの形式が不正です。' });
   }
 
-  const startDate = isoDaysAgo(days + LAG_DAYS);
+  // APIのstart/endは両端を含む。選択日数と実データ日数を一致させる。
+  const startDate = isoDaysAgo(days + LAG_DAYS - 1);
   const endDate = isoDaysAgo(LAG_DAYS);
+  const previousStartDate = isoDaysAgo(days * 2 + LAG_DAYS - 1);
+  const previousEndDate = isoDaysAgo(days + LAG_DAYS);
 
   try {
     const token = await refreshTokenToken(clientId, clientSecret, refresh);
@@ -144,6 +150,22 @@ module.exports = async (req, res) => {
         out.failed[name] = e.message || 'unknown error';
       }
     }
+
+    try {
+      const previousParams = new URLSearchParams({
+        ids: 'channel==MINE',
+        startDate: previousStartDate,
+        endDate: previousEndDate,
+        metrics: REPORTS.summary.metrics,
+      });
+      const previousPayload = await authedFetch(`${BASE}?${previousParams}`, token, { method: 'GET' });
+      out.previousSummary = toRows(previousPayload)[0] || {};
+    } catch (e) {
+      out.failed.previousSummary = e.message || 'unknown error';
+      out.previousSummary = {};
+    }
+
+    out.period = { startDate, endDate, previousStartDate, previousEndDate, days };
 
     if (out.reports.video && out.reports.video.length) {
       try {

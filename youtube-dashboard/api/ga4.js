@@ -17,7 +17,7 @@ function send(res, status, body) {
 
 function pathFilter() {
   return {
-    filter: { fieldName: 'pagePath', stringFilter: { matchType: 'BEGINS_WITH', value: PATH_PREFIX } },
+    filter: { fieldName: 'pagePath', stringFilter: { matchType: 'FULL_REGEXP', value: '^/nensyuagent(?:/|$)' } },
   };
 }
 
@@ -27,8 +27,16 @@ function andFilter(filters) {
 
 function youtubeFilter() {
   return {
-    filter: { fieldName: 'sessionSource', stringFilter: { matchType: 'CONTAINS', value: 'youtube', caseSensitive: false } },
+    orGroup: { expressions: [
+      { filter: { fieldName: 'sessionSource', stringFilter: { matchType: 'CONTAINS', value: 'youtube', caseSensitive: false } } },
+      { filter: { fieldName: 'sessionSource', stringFilter: { matchType: 'CONTAINS', value: 'youtu.be', caseSensitive: false } } },
+    ] },
   };
+}
+
+function isoDaysAgo(days) {
+  const d = new Date(Date.now() - days * 86400000);
+  return d.toISOString().slice(0, 10);
 }
 
 async function runReport(propertyId, token, body) {
@@ -72,7 +80,8 @@ module.exports = async (req, res) => {
   const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   const url = new URL(req.url, 'http://localhost');
   const days = Math.min(Math.max(parseInt(url.searchParams.get('days'), 10) || 90, 1), 400);
-  const startDate = `${days}daysAgo`;
+  // GA4のDateRangeは両端を含む。90日指定なら89daysAgo〜todayで90日。
+  const startDate = `${days - 1}daysAgo`;
 
   if (!propertyId || !saJson) {
     return send(res, 503, {
@@ -86,7 +95,9 @@ module.exports = async (req, res) => {
   try {
     const token = await serviceAccountToken(saJson, SCOPE);
     const dateRanges = [{ startDate, endDate: 'today' }];
+    const previousDateRanges = [{ startDate: `${days * 2 - 1}daysAgo`, endDate: `${days}daysAgo` }];
     const baseMetrics = [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'screenPageViews' }];
+    const summaryMetrics = baseMetrics.concat([{ name: 'sessionKeyEventRate' }]);
 
     // 1) 日別の推移
     const daily = await runWithKeyEvents(propertyId, token, {
@@ -119,13 +130,43 @@ module.exports = async (req, res) => {
     });
 
     // 4) YouTube経由だけを分離（送客の評価はここで行う）
-    const youtube = await runReport(propertyId, token, {
+    const youtube = await runWithKeyEvents(propertyId, token, {
       dateRanges,
       dimensions: [{ name: 'date' }],
-      metrics: baseMetrics,
+      metrics: summaryMetrics,
       dimensionFilter: andFilter([pathFilter(), youtubeFilter()]),
       orderBys: [{ dimension: { dimensionName: 'date' } }],
       limit: 400,
+    });
+
+    // 期間ユニークユーザーや率は日別合算できないため、dimensionなしのsummaryを使う。
+    const summary = await runWithKeyEvents(propertyId, token, {
+      dateRanges,
+      dimensions: [],
+      metrics: summaryMetrics,
+      dimensionFilter: pathFilter(),
+      limit: 1,
+    });
+    const youtubeSummary = await runWithKeyEvents(propertyId, token, {
+      dateRanges,
+      dimensions: [],
+      metrics: summaryMetrics,
+      dimensionFilter: andFilter([pathFilter(), youtubeFilter()]),
+      limit: 1,
+    });
+    const previousSummary = await runWithKeyEvents(propertyId, token, {
+      dateRanges: previousDateRanges,
+      dimensions: [],
+      metrics: summaryMetrics,
+      dimensionFilter: pathFilter(),
+      limit: 1,
+    });
+    const previousYoutubeSummary = await runWithKeyEvents(propertyId, token, {
+      dateRanges: previousDateRanges,
+      dimensions: [],
+      metrics: summaryMetrics,
+      dimensionFilter: andFilter([pathFilter(), youtubeFilter()]),
+      limit: 1,
     });
 
     return send(res, 200, {
@@ -134,10 +175,19 @@ module.exports = async (req, res) => {
       pathPrefix: PATH_PREFIX,
       days,
       conversionMetric: daily.conversionMetric,
+      youtubeConversionMetric: youtube.conversionMetric,
+      summary: toRows(summary.report)[0] || {},
+      youtubeSummary: toRows(youtubeSummary.report)[0] || {},
+      previousSummary: toRows(previousSummary.report)[0] || {},
+      previousYoutubeSummary: toRows(previousYoutubeSummary.report)[0] || {},
+      period: {
+        startDate: isoDaysAgo(days - 1), endDate: isoDaysAgo(0),
+        previousStartDate: isoDaysAgo(days * 2 - 1), previousEndDate: isoDaysAgo(days), days,
+      },
       daily: toRows(daily.report),
       bySourceMedium: toRows(bySource),
       byPage: toRows(byPage),
-      youtubeDaily: toRows(youtube),
+      youtubeDaily: toRows(youtube.report),
     });
   } catch (e) {
     const status = e.status === 403 ? 403 : e.status === 401 ? 401 : 502;

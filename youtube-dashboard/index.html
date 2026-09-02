@@ -91,6 +91,10 @@
   .tile .k { color: var(--text-secondary); font-size: 12px; }
   .tile .v { font-size: 28px; font-weight: 650; line-height: 1.18; margin-top: 5px; letter-spacing: -.012em; }
   .tile .m { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+  .delta { display: inline-flex; align-items: center; margin-top: 7px; padding: 2px 7px; border-radius: 999px;
+           font-size: 11px; font-weight: 700; background: var(--track); color: var(--muted); }
+  .delta.up { color: #087f5b; background: rgba(27,175,122,.11); }
+  .delta.down { color: #c23b22; background: rgba(194,59,34,.10); }
 
   .hrow { display: grid; grid-template-columns: minmax(0,1fr) 52% auto; gap: 12px; align-items: center; padding: 4px 0; }
   .hlabel { color: var(--text-secondary); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -115,14 +119,24 @@
   .xaxis span { flex: 1 1 0; min-width: 0; text-align: center; color: var(--muted); font-size: 10.5px; overflow: visible; white-space: nowrap; }
 
   .scroll { overflow-x: auto; }
+  .table-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
+  .table-tools input, .table-tools select { min-height: 34px; }
+  .table-tools input { flex: 1 1 240px; min-width: 160px; font: inherit; padding: 6px 9px; border-radius: 8px;
+                       border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); }
+  .table-count { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .pager { display: flex; justify-content: flex-end; align-items: center; gap: 9px; margin-top: 12px; }
+  .pager span { color: var(--muted); font-size: 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
   th { color: var(--text-secondary); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; user-select: none; }
+  thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-1); }
   th:hover { color: var(--text-primary); }
   th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   tbody tr:hover { background: var(--track); }
   td a { color: var(--series-1); text-decoration: none; }
   td a:hover { text-decoration: underline; }
+  .video-table td:first-child { min-width: 260px; max-width: 420px; }
+  .video-table td:first-child a { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
   .setup { border: 1px solid var(--warn-line); background: var(--warn-bg); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
   .setup h2 { font-size: 13px; margin: 0 0 4px; color: var(--warn-ink); letter-spacing: .01em; }
@@ -146,10 +160,14 @@
   .overview-card { appearance: none; width: 100%; text-align: left; color: var(--text-primary); cursor: pointer; }
   .overview-card:hover { border-color: rgba(42,120,214,.35); }
   .overview-card .arrow { float: right; color: var(--series-1); font-weight: 700; }
+  .overview-data { margin-top: 16px; }
+  .section-title { margin: 22px 0 10px; font-size: 16px; letter-spacing: -.01em; }
+  .actions { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .actions li { padding: 10px 12px; border-left: 3px solid var(--series-1); background: var(--track); border-radius: 0 8px 8px 0; }
   @media (max-width: 720px) {
     .app-shell { display: block; }
-    .sidebar { position: static; width: auto; height: auto; padding: 14px; }
-    .brand { padding: 0 4px 12px; }
+    .sidebar { position: sticky; top: 0; z-index: 10; width: auto; height: auto; padding: 10px 14px; }
+    .brand { display: none; }
     .nav-group { margin-top: 12px; }
     .nav-label { display: none; }
     .tabs { display: flex; overflow-x: auto; }
@@ -214,6 +232,7 @@
         <p class="note">YouTube経由のセッション、遷移先ページ、コンバージョンを確認します。</p>
       </button>
     </div>
+    <div id="overview-data" class="overview-data"></div>
   </section>
   <section id="panel-yt" class="hide"><div id="yt-body"></div></section>
   <section id="panel-ga" class="hide"><div id="ga-body"></div></section>
@@ -269,9 +288,18 @@
     var host = el('<div class="tiles"></div>');
     list.forEach(function (t) {
       host.appendChild(el('<div class="tile"><div class="k">' + esc(t[0]) + '</div><div class="v">' +
-        esc(t[1]) + '</div><div class="m">' + esc(t[2] || '') + '</div></div>'));
+        esc(t[1]) + '</div><div class="m">' + esc(t[2] || '') + '</div>' +
+        (t[3] ? '<span class="delta ' + esc(t[3].state || '') + '">' + esc(t[3].label) + '</span>' : '') + '</div>'));
     });
     return host;
+  }
+
+  function delta(current, previous) {
+    current = Number(current) || 0; previous = Number(previous) || 0;
+    if (!previous) return { label: current ? '前期間データなし' : '前期間比 0.0%', state: '' };
+    var rate = (current - previous) / previous * 100;
+    return { label: (rate >= 0 ? '↑ ' : '↓ ') + Math.abs(rate).toFixed(1) + '% 前期間比',
+      state: rate > 0 ? 'up' : rate < 0 ? 'down' : '' };
   }
 
   function barChart(rows, opts) {
@@ -333,13 +361,30 @@
     return host;
   }
 
-  function sortableTable(cols, rows) {
-    var state = { key: null, dir: -1 };
+  function sortableTable(cols, rows, options) {
+    options = options || {};
+    var state = { key: options.defaultSort || null, dir: -1, query: '', filter: 'all', page: 1 };
     var host = el('<div class="scroll"></div>');
     var table = document.createElement('table');
+    var tools = null, count = null, pager = null;
+    if (options.explore) {
+      tools = el('<div class="table-tools"><input type="search" aria-label="動画タイトルを検索" placeholder="動画タイトルを検索">' +
+        '<select aria-label="動画の長さ"><option value="all">すべての動画</option><option value="long">61秒以上</option><option value="short">60秒以下</option></select>' +
+        '<span class="table-count"></span></div>');
+      count = tools.querySelector('.table-count');
+      tools.querySelector('input').addEventListener('input', function (e) { state.query = e.target.value; state.page = 1; draw(); });
+      tools.querySelector('select').addEventListener('change', function (e) { state.filter = e.target.value; state.page = 1; draw(); });
+      host.appendChild(tools);
+    }
     host.appendChild(table);
+    if (options.explore) table.className = 'video-table';
+    if (options.explore) { pager = el('<div class="pager"></div>'); host.appendChild(pager); }
     function draw() {
-      var data = rows.slice();
+      var data = rows.filter(function (r) {
+        var textOk = !state.query || String(r.title || '').toLowerCase().indexOf(state.query.toLowerCase()) >= 0;
+        var typeOk = state.filter === 'all' || (state.filter === 'short' ? r.isShort : !r.isShort);
+        return textOk && typeOk;
+      });
       if (state.key) {
         var c = cols.filter(function (x) { return x.key === state.key; })[0];
         data.sort(function (a, b) {
@@ -348,6 +393,10 @@
           return String(av).localeCompare(String(bv), 'ja') * state.dir;
         });
       }
+      var total = data.length, pageSize = options.pageSize || 20;
+      var pages = Math.max(1, Math.ceil(total / pageSize));
+      state.page = Math.min(state.page, pages);
+      if (options.explore) data = data.slice((state.page - 1) * pageSize, state.page * pageSize);
       table.innerHTML = '<thead><tr>' + cols.map(function (c) {
         return '<th class="' + (c.num ? 'num' : '') + '" data-k="' + esc(c.key) + '">' + esc(c.head) +
           (state.key === c.key ? (state.dir < 0 ? ' ↓' : ' ↑') : '') + '</th>';
@@ -363,6 +412,15 @@
           draw();
         });
       });
+      if (options.explore) {
+        count.textContent = nf(total) + '件';
+        pager.innerHTML = '<button class="btn" type="button" data-p="prev" ' + (state.page <= 1 ? 'disabled' : '') + '>前へ</button>' +
+          '<span>' + state.page + ' / ' + pages + 'ページ</span>' +
+          '<button class="btn" type="button" data-p="next" ' + (state.page >= pages ? 'disabled' : '') + '>次へ</button>';
+        Array.prototype.forEach.call(pager.querySelectorAll('button'), function (b) {
+          b.addEventListener('click', function () { state.page += b.dataset.p === 'next' ? 1 : -1; draw(); tools.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+        });
+      }
     }
     draw();
     return host;
@@ -454,22 +512,25 @@
     var A = (ana.ok && ana.body.reports) ? ana.body.reports : null;
     var daily = (A && A.daily) || [];
 
-    var periodViews = sum(daily, 'views');
-    var watchMin = sum(daily, 'estimatedMinutesWatched');
-    var subsNet = sum(daily, 'subscribersGained') - sum(daily, 'subscribersLost');
-    var avgRetention = daily.length
-      ? daily.reduce(function (a, r) { return a + (Number(r.averageViewPercentage) || 0) * (Number(r.views) || 0); }, 0) /
-        (periodViews || 1)
-      : null;
+    var summary = (A && A.summary && A.summary[0]) || {};
+    var previous = (ana.ok && ana.body.previousSummary) || {};
+    var periodViews = Number(summary.views) || sum(daily, 'views');
+    var watchMin = Number(summary.estimatedMinutesWatched) || sum(daily, 'estimatedMinutesWatched');
+    var subsNet = (Number(summary.subscribersGained) || 0) - (Number(summary.subscribersLost) || 0);
+    var previousSubsNet = (Number(previous.subscribersGained) || 0) - (Number(previous.subscribersLost) || 0);
+    var avgRetention = summary.averageViewPercentage == null ? null : Number(summary.averageViewPercentage);
 
     host.appendChild(tiles([
       ['登録者数', ch.subscriberCount == null ? '非公開' : compact(ch.subscriberCount),
         ch.subscriberCount == null ? 'チャンネル側で非表示' : nf(ch.subscriberCount) + ' 人'],
       ['チャンネル総再生回数', compact(ch.viewCount), nf(ch.viewCount) + ' 回（全期間）'],
-      A ? ['期間内 視聴回数', compact(periodViews), '直近' + days + '日'] : ['公開動画数', nf(ch.videoCount), '取得済み ' + nf(vids.length) + ' 本'],
-      A ? ['期間内 登録者純増', (subsNet >= 0 ? '+' : '') + nf(subsNet), '直近' + days + '日'] : ['取得済み動画', nf(vids.length) + ' 本', '最大200本'],
-      A && avgRetention ? ['平均視聴維持率', pct(avgRetention, 1), '視聴回数で加重平均'] : null,
-      A ? ['総再生時間', compact(Math.round(watchMin)) + ' 分', nf(Math.round(watchMin / 60)) + ' 時間'] : null
+      A ? ['期間内 視聴回数', compact(periodViews), ana.body.period.startDate + ' 〜 ' + ana.body.period.endDate,
+        delta(periodViews, previous.views)] : ['公開動画数', nf(ch.videoCount), '取得済み ' + nf(vids.length) + ' 本'],
+      A ? ['期間内 登録者純増', (subsNet >= 0 ? '+' : '') + nf(subsNet), '登録増 − 登録解除',
+        delta(subsNet, previousSubsNet)] : ['取得済み動画', nf(vids.length) + ' 本', '最大200本'],
+      A && avgRetention ? ['平均視聴維持率', pct(avgRetention, 1), '期間全体の公式集計'] : null,
+      A ? ['総再生時間', compact(Math.round(watchMin)) + ' 分', nf(Math.round(watchMin / 60)) + ' 時間',
+        delta(watchMin, previous.estimatedMinutesWatched)] : null
     ].filter(Boolean)));
 
     if (!A) {
@@ -527,7 +588,9 @@
     });
     var merged = Object.keys(byId).map(function (k) { return byId[k]; });
 
-    var top = merged.slice().sort(function (a, b) { return (b.aViews || b.views) - (a.aViews || a.views); }).slice(0, 10);
+    var top = merged.slice().sort(function (a, b) {
+      return A ? ((Number(b.aViews) || 0) - (Number(a.aViews) || 0)) : ((Number(b.views) || 0) - (Number(a.views) || 0));
+    }).slice(0, 10);
     if (top.length) {
       host.appendChild(card(A ? '視聴回数 トップ10（期間内）' : '再生回数 トップ10（累計）',
         '数値は各バーの右端に直接表示しています。',
@@ -543,17 +606,21 @@
       { key: 'title', head: '動画', render: function (r) {
         return (r.unavailable ? '<span class="note">' + esc(r.title) + '</span>' :
           '<a href="https://www.youtube.com/watch?v=' + esc(r.id) + '" target="_blank" rel="noopener">' + esc(r.title) + '</a>') +
-          (r.isShort ? ' <span class="note">（ショート）</span>' : ''); } },
+          (r.isShort ? ' <span class="note">（60秒以下）</span>' : ''); } },
       { key: 'publishedAt', head: '公開日', render: function (r) { return esc(r.publishedAt ? normDate(r.publishedAt.slice(0, 10)) : '—'); } },
-      { key: 'views', head: '累計再生', num: true, render: function (r) { return esc(nf(r.views)); } }
+      { key: 'views', head: '累計再生回数', num: true, render: function (r) { return esc(nf(r.views)); } }
     ];
     if (A) cols = cols.concat([
-      { key: 'aViews', head: '期間内視聴', num: true, render: function (r) { return esc(r.aViews == null ? '—' : nf(r.aViews)); } },
+      { key: 'aViews', head: '期間内視聴回数', num: true, render: function (r) { return esc(r.aViews == null ? '—' : nf(r.aViews)); } },
       { key: 'retention', head: '維持率', num: true, render: function (r) { return esc(r.retention == null ? '—' : pct(r.retention, 1)); } },
-      { key: 'avgDuration', head: '平均視聴', num: true, render: function (r) { return esc(r.avgDuration == null ? '—' : hms(r.avgDuration)); } },
-      { key: 'subs', head: '登録+', num: true, render: function (r) { return esc(r.subs == null ? '—' : nf(r.subs)); } }
+      { key: 'avgDuration', head: '平均視聴時間', num: true, render: function (r) { return esc(r.avgDuration == null ? '—' : hms(r.avgDuration)); } },
+      { key: 'subs', head: '登録者増加', num: true, render: function (r) { return esc(r.subs == null ? '—' : nf(r.subs)); } },
+      { key: 'subsPerK', head: '登録者 / 1,000視聴', num: true, render: function (r) { return esc(r.subsPerK == null ? '—' : nf(r.subsPerK)); } }
     ]);
-    host.appendChild(card('動画別（' + nf(merged.length) + '本）', '列見出しをクリックすると並べ替えできます。', sortableTable(cols, merged)));
+    merged.forEach(function (r) { r.subsPerK = r.aViews ? Number(r.subs || 0) / Number(r.aViews) * 1000 : null; });
+    host.appendChild(card('動画別（' + nf(merged.length) + '本）',
+      '初期表示は期間内視聴回数の上位20件。検索・形式・列見出しで絞り込めます。',
+      sortableTable(cols, merged, { explore: true, pageSize: 20, defaultSort: A ? 'aViews' : 'views' })));
   }
 
   // =================== GA4 ===================
@@ -580,22 +647,27 @@
 
     setStatus('ga', '接続済み', 'ok');
 
-    var d = r.body, cvKey = d.conversionMetric;
-    var totalSessions = sum(d.daily, 'sessions');
-    var totalUsers = sum(d.daily, 'activeUsers');
-    var totalViews = sum(d.daily, 'screenPageViews');
-    var totalCv = cvKey ? sum(d.daily, cvKey) : null;
-    var ytSessions = sum(d.youtubeDaily, 'sessions');
-    var ytCv = cvKey ? sum(d.youtubeDaily, cvKey) : null;
+    var d = r.body, cvKey = d.conversionMetric, ytCvKey = d.youtubeConversionMetric;
+    var s = d.summary || {}, ps = d.previousSummary || {};
+    var ys = d.youtubeSummary || {}, pys = d.previousYoutubeSummary || {};
+    var totalSessions = Number(s.sessions) || 0;
+    var totalUsers = Number(s.activeUsers) || 0;
+    var totalViews = Number(s.screenPageViews) || 0;
+    var totalCv = cvKey ? Number(s[cvKey]) || 0 : null;
+    var ytSessions = Number(ys.sessions) || 0;
+    var ytCv = ytCvKey ? Number(ys[ytCvKey]) || 0 : null;
+    var ytSessionKeyEventRate = Number(ys.sessionKeyEventRate) || 0;
 
     host.appendChild(tiles([
-      ['セッション', compact(totalSessions), '直近' + d.days + '日・' + d.pathPrefix],
-      ['ユーザー', compact(totalUsers), 'アクティブユーザー'],
-      ['ページビュー', compact(totalViews), ''],
-      cvKey ? ['コンバージョン', nf(totalCv), 'GA4指標: ' + cvKey] : ['コンバージョン', '要設定', 'GA4でキーイベント未定義'],
+      ['セッション', compact(totalSessions), d.period.startDate + ' 〜 ' + d.period.endDate, delta(totalSessions, ps.sessions)],
+      ['ユーザー', compact(totalUsers), '期間内アクティブユーザー（重複除外）', delta(totalUsers, ps.activeUsers)],
+      ['ページビュー', compact(totalViews), '', delta(totalViews, ps.screenPageViews)],
+      cvKey ? ['キーイベント数', nf(totalCv), 'GA4指標: ' + cvKey, delta(totalCv, ps[cvKey])] : ['キーイベント数', '要設定', 'GA4でキーイベント未定義'],
       ['YouTube経由 セッション', nf(ytSessions),
-        totalSessions ? '全体の ' + pct(ytSessions / totalSessions * 100, 1) : ''],
-      cvKey ? ['YouTube経由 CV', nf(ytCv), ytSessions ? 'CVR ' + pct(ytCv / ytSessions * 100, 2) : '—'] : null
+        totalSessions ? '全体の ' + pct(ytSessions / totalSessions * 100, 1) : '', delta(ytSessions, pys.sessions)],
+      ytCvKey ? ['YouTube経由 キーイベント', nf(ytCv), '対象パス上で発生', delta(ytCv, pys[ytCvKey])] : null,
+      ['YouTube経由 セッションキーイベント率', pct(ytSessionKeyEventRate * 100, 2),
+        'キーイベントが発生したセッションの割合', delta(ytSessionKeyEventRate, pys.sessionKeyEventRate)]
     ].filter(Boolean)));
 
     if (d.daily.length) {
@@ -634,6 +706,62 @@
     }
   }
 
+  var dashboardState = { pub: null, ana: null, ga: null };
+
+  function renderOverview() {
+    var host = document.getElementById('overview-data');
+    var ana = dashboardState.ana, ga = dashboardState.ga;
+    if (!ana || !ga) { host.innerHTML = '<div class="skeleton" aria-label="概要を集計中"></div>'; return; }
+    host.innerHTML = '<h2 class="section-title">期間サマリー</h2>';
+    var list = [];
+    if (ana.ok && ana.body.reports) {
+      var ys = (ana.body.reports.summary || [])[0] || {}, yp = ana.body.previousSummary || {};
+      var ySubs = (Number(ys.subscribersGained) || 0) - (Number(ys.subscribersLost) || 0);
+      var ypSubs = (Number(yp.subscribersGained) || 0) - (Number(yp.subscribersLost) || 0);
+      list.push(['YouTube 視聴回数', compact(ys.views), '選択期間', delta(ys.views, yp.views)]);
+      list.push(['総再生時間', nf(Math.round((Number(ys.estimatedMinutesWatched) || 0) / 60)) + ' 時間', '選択期間',
+        delta(ys.estimatedMinutesWatched, yp.estimatedMinutesWatched)]);
+      list.push(['登録者純増', (ySubs >= 0 ? '+' : '') + nf(ySubs), '登録増 − 登録解除', delta(ySubs, ypSubs)]);
+    }
+    if (ga.ok) {
+      var gs = ga.body.youtubeSummary || {}, gp = ga.body.previousYoutubeSummary || {};
+      list.push(['YouTube経由 セッション', nf(gs.sessions), '年収エージェントへの送客', delta(gs.sessions, gp.sessions)]);
+      if (ga.body.youtubeConversionMetric) list.push(['YouTube経由 キーイベント', nf(gs[ga.body.youtubeConversionMetric]),
+        '対象パス上で発生', delta(gs[ga.body.youtubeConversionMetric], gp[ga.body.youtubeConversionMetric])]);
+      list.push(['セッションキーイベント率', pct((Number(gs.sessionKeyEventRate) || 0) * 100, 2),
+        'YouTube経由', delta(gs.sessionKeyEventRate, gp.sessionKeyEventRate)]);
+    }
+    host.appendChild(tiles(list));
+
+    if (ana.ok && ana.body.reports && ana.body.reports.video) {
+      var names = {};
+      (ana.body.videoMetadata || []).forEach(function (v) { names[v.id] = v.title; });
+      var top3 = ana.body.reports.video.slice().sort(function (a, b) { return Number(b.views) - Number(a.views); }).slice(0, 3);
+      if (top3.length) host.appendChild(card('伸びた動画 トップ3', '選択期間の視聴回数。次の企画判断に使います。',
+        barChart(top3.map(function (v) { return { label: names[v.video] || '動画', value: v.views }; }), { format: compact })));
+
+      var actions = [];
+      var currentSummary = (ana.body.reports.summary || [])[0] || {}, prevSummary = ana.body.previousSummary || {};
+      if (Number(prevSummary.views)) {
+        var viewRate = (Number(currentSummary.views) - Number(prevSummary.views)) / Number(prevSummary.views) * 100;
+        actions.push('視聴回数は前期間比' + (viewRate >= 0 ? '+' : '') + viewRate.toFixed(1) + '%。' +
+          (viewRate >= 0 ? 'トップ3のテーマを次回企画へ展開します。' : '流入元と公開本数を確認し、下落要因を切り分けます。'));
+      }
+      if (ga.ok) {
+        var ytSessions = Number((ga.body.youtubeSummary || {}).sessions) || 0;
+        var views = Number(currentSummary.views) || 0;
+        actions.push(views && ytSessions / views < 0.001
+          ? '視聴に対してサイト送客が少ないため、概要欄・固定コメント・終了画面のCTAとUTMを確認します。'
+          : 'YouTube経由セッションの遷移先ページを確認し、反応のよいCTAを他動画へ横展開します。');
+      }
+      var best = ana.body.reports.video.filter(function (v) { return Number(v.views) >= 100; })
+        .sort(function (a, b) { return (Number(b.subscribersGained) / Number(b.views)) - (Number(a.subscribersGained) / Number(a.views)); })[0];
+      if (best) actions.push('登録者獲得効率が高い「' + (names[best.video] || '上位動画') + '」のテーマ・構成を再利用します。');
+      if (actions.length) host.appendChild(card('今やること', 'データから自動生成した確認項目。',
+        el('<ul class="actions">' + actions.slice(0, 3).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>')));
+    }
+  }
+
   // =================== 読み込み ===================
   function loadAll() {
     days = parseInt(document.getElementById('range').value, 10) || 90;
@@ -649,28 +777,38 @@
     Promise.all([
       getJSON('/api/youtube?max=200').catch(softFail),
       getJSON('/api/youtube-analytics?days=' + days).catch(softFail)
-    ]).then(function (res) { renderYouTube(res[0], res[1]); });
+    ]).then(function (res) {
+      dashboardState.pub = res[0]; dashboardState.ana = res[1];
+      renderYouTube(res[0], res[1]); renderOverview();
+    });
 
-    getJSON('/api/ga4?days=' + days).catch(softFail).then(renderGA4);
+    getJSON('/api/ga4?days=' + days).catch(softFail).then(function (r) {
+      dashboardState.ga = r; renderGA4(r); renderOverview();
+    });
+  }
+
+  function selectTab(name, updateHash) {
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
+      var selected = x.dataset.tab === name;
+      x.setAttribute('aria-selected', String(selected));
+      document.getElementById('panel-' + x.dataset.tab).classList.toggle('hide', !selected);
+    });
+    if (updateHash) history.replaceState(null, '', name === 'overview' ? '#overview' : name === 'yt' ? '#youtube' : '#ga4');
   }
 
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
-    t.addEventListener('click', function () {
-      Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
-        x.setAttribute('aria-selected', String(x === t));
-        document.getElementById('panel-' + x.dataset.tab).classList.toggle('hide', x !== t);
-      });
-    });
+    t.addEventListener('click', function () { selectTab(t.dataset.tab, true); });
   });
   Array.prototype.forEach.call(document.querySelectorAll('[data-open-tab]'), function (b) {
     b.addEventListener('click', function () {
-      var target = document.querySelector('.tab[data-tab="' + b.dataset.openTab + '"]');
-      if (target) target.click();
+      selectTab(b.dataset.openTab, true);
     });
   });
   document.getElementById('reload').addEventListener('click', loadAll);
   document.getElementById('range').addEventListener('change', loadAll);
 
+  var initialHash = location.hash === '#youtube' ? 'yt' : location.hash === '#ga4' ? 'ga' : 'overview';
+  selectTab(initialHash, false);
   loadAll();
 })();
 </script>
