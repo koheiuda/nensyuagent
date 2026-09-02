@@ -244,6 +244,7 @@
     <p class="nav-label">ダッシュボード</p>
     <div class="tabs" role="tablist" aria-label="分析メニュー">
       <button id="tab-overview" class="tab" role="tab" aria-controls="panel-overview" aria-selected="true" data-tab="overview">概要</button>
+      <button id="tab-monthly" class="tab" role="tab" aria-controls="panel-monthly" aria-selected="false" data-tab="monthly">月次分析</button>
       <button id="tab-ideas" class="tab" role="tab" aria-controls="panel-ideas" aria-selected="false" data-tab="ideas">改善提案</button>
       <button id="tab-yt" class="tab" role="tab" aria-controls="panel-yt" aria-selected="false" data-tab="yt">YouTube分析</button>
       <button id="tab-ga" class="tab" role="tab" aria-controls="panel-ga" aria-selected="false" data-tab="ga">サイト送客・CV</button>
@@ -286,6 +287,7 @@
     </div>
     <div id="overview-data" class="overview-data"></div>
   </section>
+  <section id="panel-monthly" role="tabpanel" aria-labelledby="tab-monthly" class="hide"><div id="monthly-body"></div></section>
   <section id="panel-yt" role="tabpanel" aria-labelledby="tab-yt" class="hide"><div id="yt-body"></div></section>
   <section id="panel-ga" role="tabpanel" aria-labelledby="tab-ga" class="hide"><div id="ga-body"></div></section>
   <section id="panel-ideas" role="tabpanel" aria-labelledby="tab-ideas" class="hide"><div id="ideas-body"></div></section>
@@ -345,6 +347,9 @@
     '視聴回数 トップ3': '選択期間のYouTube Analytics viewsが多い3動画です。動画の公開時期が異なるため初速比較ではありません。',
     '今やること': '前期間比、サイト送客率、登録者獲得効率からルールベースで生成した確認候補です。因果関係を断定するものではありません。',
     '改善提案サマリー': '動画別の今期間と直前同日数、視聴維持率、登録者効率、GA4のセッション帰属問い合わせを結合したルールベース分析です。テーマはタイトル語、尺帯は動画時間から自動で仮分類しています。',
+    '月次総まとめ': '直近210日の日次データを暦月で集計し、最新月と前月を比較します。YouTube Analyticsの確定遅延により直近3日は含みません。',
+    '月次KPI比較': '対象月と前月を同じ指標で比較します。維持率は視聴回数加重、CVはGA4イベント数です。',
+    '対象月の週別推移': '対象月の日次データを月曜始まりの暦週で集計します。月をまたぐ週は対象月内の日付だけを集計します。',
     '伸長を再検証する動画': '両期間の上位200本に入り、今期間500視聴以上、前期間100視聴以上、かつ20%以上・100視聴以上増えた既存動画の件数です。',
     '既存動画の伸長候補': '両期間の上位200本に入り、今期間500視聴以上、前期間100視聴以上、かつ20%以上・100視聴以上増えた動画です。',
     '新規動画の初動候補': '今期間に公開され、今期間1,000視聴以上の動画です。既存動画の前期間比とは分けて評価します。',
@@ -1350,6 +1355,79 @@
     });
   }
 
+  function renderMonthly() {
+    var host = document.getElementById('monthly-body');
+    var ana = dashboardState.monthlyAna, ga = dashboardState.monthlyGa;
+    host.innerHTML = '';
+    if (!ana || !ga) {
+      host.innerHTML = '<div class="skeleton" aria-label="読み込み中"></div><div class="skeleton" aria-hidden="true"></div>';
+      return;
+    }
+    if (!ana.ok || !ga.ok) {
+      host.appendChild(setupCard('月次分析を読み込めません', 'YouTube AnalyticsとGA4の両方が接続済みの場合に表示します。', []));
+      return;
+    }
+    var ytDaily = ana.body.reports.daily || [], gaBody = ga.body;
+    if (!ytDaily.length) { host.appendChild(el('<p class="note">月次データがありません。</p>')); return; }
+    var months = aggregateRows(ytDaily, 'month');
+    var cvMonths = conversionBuckets(ytDaily, gaBody.youtubeDaily || [], gaBody.youtubeInquiryDaily || [], 'month',
+      ana.body.period.startDate, ana.body.period.endDate);
+    var cvByMonth = {};
+    cvMonths.forEach(function (g) { cvByMonth[g.period] = g; });
+    months.forEach(function (g) {
+      var cv = cvByMonth[g.period];
+      g.sessions = cv ? cv.sessions : null; g.inquiries = cv ? cv.inquiries : null;
+      g.sessionPerK = cv ? cv.sessionPerK : null; g.inquiryRate = cv ? cv.inquiryRate : null;
+    });
+    var current = months[months.length - 1], previous = months.length > 1 ? months[months.length - 2] : null;
+    var monthLabel = current.start.slice(0, 7).replace('-', '年') + '月';
+    var dataThrough = ana.body.period.endDate;
+    var summaryNote = monthLabel + '（' + current.start + '〜' + dataThrough + '）を総括。' +
+      (current.partial ? current.end + 'までの月確定前データを含まず、前月比は参考値です。' : '暦月の確定値です。');
+    host.appendChild(card('月次総まとめ', summaryNote, tiles([
+      ['視聴回数', compact(current.views), monthLabel, previous ? delta(current.views, previous.views, '前月比') : null],
+      ['総再生時間', watchAmount(current.watchMin), monthLabel, previous ? delta(current.watchMin, previous.watchMin, '前月比') : null],
+      ['平均視聴維持率', pct(current.retention, 1), '視聴回数加重', previous ? { label: ((current.retention - previous.retention) >= 0 ? '↑ +' : '↓ ') + Math.abs(current.retention - previous.retention).toFixed(1) + 'pt 前月差', state: current.retention > previous.retention ? 'up' : current.retention < previous.retention ? 'down' : '' } : null],
+      ['登録者純増', (current.netSubs >= 0 ? '+' : '') + nf(current.netSubs), monthLabel, previous ? signedDelta(current.netSubs, previous.netSubs, '前月差') : null],
+      ['概要欄遷移数', current.sessions == null ? '—' : nf(current.sessions), current.sessions == null ? '計測前' : monthLabel, previous && previous.sessions != null ? delta(current.sessions, previous.sessions, '前月比') : null],
+      ['問い合わせ数', current.inquiries == null ? '—' : nf(current.inquiries), current.inquiries == null ? '計測前' : 'CV_求職者all', previous && previous.inquiries != null ? delta(current.inquiries, previous.inquiries, '前月比') : null]
+    ])));
+
+    var compareRows = [previous, current].filter(Boolean);
+    var compareCols = [
+      { key: 'period', head: '対象月', render: function (g) { return esc(g.start.slice(0, 7)) + (g.partial ? '<span class="partial">集計途中</span>' : ''); } },
+      { key: 'views', head: '視聴回数', num: true, render: function (g) { return esc(nf(g.views)); } },
+      { key: 'watchMin', head: '総再生時間', num: true, render: function (g) { return esc(watchAmount(g.watchMin)); } },
+      { key: 'retention', head: '維持率', num: true, render: function (g) { return esc(pct(g.retention, 1)); } },
+      { key: 'netSubs', head: '登録者純増', num: true, render: function (g) { return esc((g.netSubs >= 0 ? '+' : '') + nf(g.netSubs)); } },
+      { key: 'sessions', head: '概要欄遷移数', num: true, render: function (g) { return g.sessions == null ? '—<span class="mom">計測前</span>' : esc(nf(g.sessions)); } },
+      { key: 'inquiries', head: '問い合わせ数', num: true, render: function (g) { return g.inquiries == null ? '—<span class="mom">計測前</span>' : esc(nf(g.inquiries)); } },
+      { key: 'sessionPerK', head: '送客 / 1,000視聴', num: true, render: function (g) { return g.sessionPerK == null ? '—' : esc(nf(g.sessionPerK)); } }
+    ];
+    host.appendChild(card('月次KPI比較', '対象月と前月を横並びで確認します。', sortableTable(compareCols, compareRows, { defaultSort: 'period' })));
+
+    var targetRows = ytDaily.filter(function (r) { return normDate(r.day).slice(0, 7) === current.start.slice(0, 7); });
+    var weeks = aggregateRows(targetRows, 'week');
+    var cvWeeks = conversionBuckets(targetRows, gaBody.youtubeDaily || [], gaBody.youtubeInquiryDaily || [], 'week', current.start, dataThrough);
+    var cvWeekMap = {}; cvWeeks.forEach(function (g) { cvWeekMap[g.period] = g; });
+    weeks.forEach(function (g) { var cv = cvWeekMap[g.period]; g.sessions = cv ? cv.sessions : null; g.inquiries = cv ? cv.inquiries : null; });
+    var weekCols = [
+      { key: 'period', head: '週', render: function (g) { return esc(g.start + ' 〜 ' + g.end) + (g.partial ? '<span class="partial">集計途中</span>' : ''); } },
+      { key: 'views', head: '視聴回数', num: true, render: function (g) { return esc(nf(g.views)); } },
+      { key: 'watchMin', head: '総再生時間', num: true, render: function (g) { return esc(watchAmount(g.watchMin)); } },
+      { key: 'netSubs', head: '登録者純増', num: true, render: function (g) { return esc((g.netSubs >= 0 ? '+' : '') + nf(g.netSubs)); } },
+      { key: 'sessions', head: '概要欄遷移数', num: true, render: function (g) { return g.sessions == null ? '—' : esc(nf(g.sessions)); } },
+      { key: 'inquiries', head: '問い合わせ数', num: true, render: function (g) { return g.inquiries == null ? '—' : esc(nf(g.inquiries)); } }
+    ];
+    host.appendChild(card('対象月の週別推移', monthLabel + '内の日次データを週単位で集計しています。', sortableTable(weekCols, weeks, { defaultSort: 'period' })));
+
+    var actions = [];
+    if (previous && previous.views) actions.push('視聴回数は前月比' + (((current.views - previous.views) / previous.views * 100) >= 0 ? '+' : '') + ((current.views - previous.views) / previous.views * 100).toFixed(1) + '%。公開本数と上位動画の寄与をYouTube分析で確認します。');
+    if (current.sessions != null) actions.push('概要欄遷移は1,000視聴あたり' + nf(current.sessionPerK) + '件。上位視聴動画のCTAとutm_idを優先点検します。');
+    if (current.inquiries != null) actions.push('問い合わせは' + nf(current.inquiries) + 'イベント。母数が小さいため、単月だけで企画の継続・停止を断定しません。');
+    host.appendChild(card('翌月に向けた確認事項', '月次データから自動生成した確認候補です。', el('<ul class="actions">' + actions.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>')));
+  }
+
   function timeAnalysis(rows, initialUnit, monthlyRows, gaData, monthlyGaData) {
     var host = el('<div></div>');
     var controls = el('<div class="analysis-controls">' +
@@ -1421,7 +1499,7 @@
     dashboardState.ana = null;
     dashboardState.ga = null;
     ['yt', 'ga'].forEach(function (id) { setStatus(id, '確認中', ''); });
-    ['yt-body', 'ga-body', 'ideas-body'].forEach(function (id) {
+    ['yt-body', 'ga-body', 'ideas-body', 'monthly-body'].forEach(function (id) {
       document.getElementById(id).innerHTML = '<div class="skeleton" aria-label="読み込み中"></div><div class="skeleton" aria-hidden="true"></div>';
     });
 
@@ -1439,11 +1517,12 @@
       if (dashboardState.ga) renderGA4(dashboardState.ga);
       renderOverview();
       renderIdeas();
+      renderMonthly();
     });
 
     getJSON('/api/ga4?days=' + days).catch(softFail).then(function (r) {
       if (generation !== loadGeneration) return;
-      dashboardState.ga = r; renderGA4(r); renderOverview(); renderIdeas();
+      dashboardState.ga = r; renderGA4(r); renderOverview(); renderIdeas(); renderMonthly();
     });
 
     if (!dashboardState.monthlyAna || !dashboardState.monthlyGa) {
@@ -1455,6 +1534,7 @@
         dashboardState.monthlyAna = res[0]; dashboardState.monthlyGa = res[1];
         if (dashboardState.pub && dashboardState.ana) renderYouTube(dashboardState.pub, dashboardState.ana);
         if (dashboardState.ga) renderGA4(dashboardState.ga);
+        renderMonthly();
       });
     }
   }
@@ -1465,7 +1545,7 @@
       x.setAttribute('aria-selected', String(selected));
       document.getElementById('panel-' + x.dataset.tab).classList.toggle('hide', !selected);
     });
-    if (updateHash) history.replaceState(null, '', name === 'overview' ? '#overview' : name === 'yt' ? '#youtube' : name === 'ga' ? '#ga4' : '#ideas');
+    if (updateHash) history.replaceState(null, '', name === 'overview' ? '#overview' : name === 'monthly' ? '#monthly' : name === 'yt' ? '#youtube' : name === 'ga' ? '#ga4' : '#ideas');
   }
 
   document.addEventListener('mouseover', function (e) {
@@ -1511,7 +1591,7 @@
   document.getElementById('reload').addEventListener('click', loadAll);
   document.getElementById('range').addEventListener('change', loadAll);
 
-  var initialHash = location.hash === '#youtube' ? 'yt' : location.hash === '#ga4' ? 'ga' : location.hash === '#ideas' ? 'ideas' : 'overview';
+  var initialHash = location.hash === '#youtube' ? 'yt' : location.hash === '#ga4' ? 'ga' : location.hash === '#ideas' ? 'ideas' : location.hash === '#monthly' ? 'monthly' : 'overview';
   selectTab(initialHash, false);
   loadAll();
 })();
