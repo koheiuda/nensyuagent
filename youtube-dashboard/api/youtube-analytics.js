@@ -1,4 +1,4 @@
-// YouTube Analytics API v2（非公開指標：インプレッション・CTR・視聴維持率・登録者増減）。
+// YouTube Analytics API v2（非公開指標：視聴維持率・総再生時間・登録者増減・流入元）。
 //
 // サービスアカウントでは代替できない。チャンネル所有者本人のOAuth同意が必要なため、
 // リフレッシュトークン方式を使う。トークンの発行は tools/get_youtube_refresh_token.py を一度だけ実行する。
@@ -20,27 +20,17 @@ function send(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-// レポート定義。インプレッション系は他の指標と同時取得できない組み合わせがあるため別クエリにする。
+// サムネイルのインプレッション／CTRは Query API v2 の対象外（Reporting API のReachレポート）なので、
+// ここでは取得可能な指標だけを要求する。
 const REPORTS = {
   daily: {
     dimensions: 'day',
     metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost',
     sort: 'day',
   },
-  dailyImpressions: {
-    dimensions: 'day',
-    metrics: 'views,impressions,impressionsClickThroughRate',
-    sort: 'day',
-  },
   video: {
     dimensions: 'video',
     metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,likes,comments',
-    sort: '-views',
-    maxResults: 200,
-  },
-  videoImpressions: {
-    dimensions: 'video',
-    metrics: 'views,impressions,impressionsClickThroughRate',
     sort: '-views',
     maxResults: 200,
   },

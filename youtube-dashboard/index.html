@@ -207,7 +207,7 @@
     <div class="overview-grid">
       <button class="card overview-card" type="button" data-open-tab="yt">
         <span class="arrow">→</span><h2>YouTube分析</h2>
-        <p class="note">再生数だけでなく、CTR・視聴維持率・総再生時間・伸びた動画を確認します。</p>
+        <p class="note">再生数だけでなく、視聴維持率・総再生時間・登録者増減・伸びた動画を確認します。</p>
       </button>
       <button class="card overview-card" type="button" data-open-tab="ga">
         <span class="arrow">→</span><h2>サイト送客・CV</h2>
@@ -445,7 +445,7 @@
       return;
     }
 
-    setStatus('yt', ana.ok ? '全指標 接続済み' : '公開指標のみ', ana.ok ? 'ok' : 'warn');
+    setStatus('yt', ana.ok ? '接続済み' : '公開指標のみ', ana.ok ? 'ok' : 'warn');
 
     var ch = pub.body.channel, vids = pub.body.videos || [];
     document.getElementById('sub').textContent = ch.title +
@@ -453,13 +453,10 @@
 
     var A = (ana.ok && ana.body.reports) ? ana.body.reports : null;
     var daily = (A && A.daily) || [];
-    var imps = (A && A.dailyImpressions) || [];
 
     var periodViews = sum(daily, 'views');
     var watchMin = sum(daily, 'estimatedMinutesWatched');
     var subsNet = sum(daily, 'subscribersGained') - sum(daily, 'subscribersLost');
-    var totalImp = sum(imps, 'impressions');
-    var impViews = sum(imps, 'views');
     var avgRetention = daily.length
       ? daily.reduce(function (a, r) { return a + (Number(r.averageViewPercentage) || 0) * (Number(r.views) || 0); }, 0) /
         (periodViews || 1)
@@ -471,14 +468,13 @@
       ['チャンネル総再生回数', compact(ch.viewCount), nf(ch.viewCount) + ' 回（全期間）'],
       A ? ['期間内 視聴回数', compact(periodViews), '直近' + days + '日'] : ['公開動画数', nf(ch.videoCount), '取得済み ' + nf(vids.length) + ' 本'],
       A ? ['期間内 登録者純増', (subsNet >= 0 ? '+' : '') + nf(subsNet), '直近' + days + '日'] : ['取得済み動画', nf(vids.length) + ' 本', '最大200本'],
-      A && totalImp ? ['インプレッションCTR', pct(impViews / totalImp * 100, 2), nf(totalImp) + ' インプレッション'] : null,
       A && avgRetention ? ['平均視聴維持率', pct(avgRetention, 1), '視聴回数で加重平均'] : null,
       A ? ['総再生時間', compact(Math.round(watchMin)) + ' 分', nf(Math.round(watchMin / 60)) + ' 時間'] : null
     ].filter(Boolean)));
 
     if (!A) {
       host.appendChild(setupCard('YouTube Analytics（非公開指標）未接続',
-        (ana.body && ana.body.message) || 'インプレッション・CTR・視聴維持率・登録者増減は OAuth 接続が必要です。', [
+        (ana.body && ana.body.message) || '視聴維持率・総再生時間・登録者増減・流入元は OAuth 接続が必要です。', [
           'Google Cloud で <code>YouTube Analytics API</code> を有効化し、OAuthクライアント（デスクトップアプリ）を作成',
           '<code>python tools/get_youtube_refresh_token.py</code> を一度実行して承認',
           'Vercel の環境変数に <code>YOUTUBE_CLIENT_ID</code> / <code>YOUTUBE_CLIENT_SECRET</code> / <code>YOUTUBE_REFRESH_TOKEN</code> を追加',
@@ -518,10 +514,6 @@
       t.aViews = r.views; t.retention = r.averageViewPercentage; t.watchMin = r.estimatedMinutesWatched;
       t.avgDuration = r.averageViewDuration; t.subs = r.subscribersGained;
     });
-    ((A && A.videoImpressions) || []).forEach(function (r) {
-      var t = byId[r.video]; if (!t) return;
-      t.impressions = r.impressions; t.ctr = r.impressionsClickThroughRate;
-    });
     var merged = Object.keys(byId).map(function (k) { return byId[k]; });
 
     var top = merged.slice().sort(function (a, b) { return (b.aViews || b.views) - (a.aViews || a.views); }).slice(0, 10);
@@ -532,7 +524,6 @@
           var val = A ? (v.aViews || 0) : v.views;
           return { label: v.title, value: val,
             tip: '<b>' + esc(v.title) + '</b><span class="r">視聴 ' + esc(nf(val)) +
-                 (v.ctr != null ? '<br>CTR ' + esc(pct(v.ctr, 2)) : '') +
                  (v.retention != null ? '<br>維持率 ' + esc(pct(v.retention, 1)) : '') + '</span>' };
         }), { format: compact })));
     }
@@ -546,8 +537,6 @@
     ];
     if (A) cols = cols.concat([
       { key: 'aViews', head: '期間内視聴', num: true, render: function (r) { return esc(r.aViews == null ? '—' : nf(r.aViews)); } },
-      { key: 'impressions', head: 'インプレ', num: true, render: function (r) { return esc(r.impressions == null ? '—' : nf(r.impressions)); } },
-      { key: 'ctr', head: 'CTR', num: true, render: function (r) { return esc(r.ctr == null ? '—' : pct(r.ctr, 2)); } },
       { key: 'retention', head: '維持率', num: true, render: function (r) { return esc(r.retention == null ? '—' : pct(r.retention, 1)); } },
       { key: 'avgDuration', head: '平均視聴', num: true, render: function (r) { return esc(r.avgDuration == null ? '—' : hms(r.avgDuration)); } },
       { key: 'subs', head: '登録+', num: true, render: function (r) { return esc(r.subs == null ? '—' : nf(r.subs)); } }
