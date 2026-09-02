@@ -9,6 +9,8 @@ const BASE = 'https://analyticsdata.googleapis.com/v1beta';
 const PATH_PREFIX = '/nensyuagent/';
 const INQUIRY_EVENT = 'CV_求職者all';
 const YOUTUBE_DESCRIPTION_CONTENT = 'agent-ch_desc';
+const YOUTUBE_CHANNEL_CONTENT_PREFIX = 'agent-ch_';
+const YOUTUBE_REFERRAL_SOURCE_MEDIUM = 'youtube.com / referral';
 // YouTube Analytics の確定遅延に合わせ、クロスチャネル比較は T-3 まで。
 const LAG_DAYS = 3;
 
@@ -34,7 +36,19 @@ function exactFilter(fieldName, value) {
 }
 
 function youtubeDescriptionFilter() {
-  return exactFilter('sessionManualAdContent', YOUTUBE_DESCRIPTION_CONTENT);
+  return {
+    filter: { fieldName: 'sessionManualAdContent', stringFilter: { matchType: 'BEGINS_WITH', value: YOUTUBE_DESCRIPTION_CONTENT, caseSensitive: true } },
+  };
+}
+
+function youtubeChannelFilter() {
+  return {
+    filter: { fieldName: 'sessionManualAdContent', stringFilter: { matchType: 'BEGINS_WITH', value: YOUTUBE_CHANNEL_CONTENT_PREFIX, caseSensitive: true } },
+  };
+}
+
+function youtubeReferralFilter() {
+  return exactFilter('sessionSourceMedium', YOUTUBE_REFERRAL_SOURCE_MEDIUM);
 }
 
 function isoDaysAgo(days) {
@@ -193,26 +207,45 @@ module.exports = async (req, res) => {
       orderBys: [{ dimension: { dimensionName: 'date' } }], limit: 400,
     });
 
-    // utm_id（sessionManualCampaignId）をYouTube動画IDとして、動画別の概要欄送客を取得する。
-    const byVideoSessions = await runReport(propertyId, token, {
+    // 計測管理表上の年収エージェントchは agent-ch_*。
+    // 概要欄だけでなく固定コメント等も含むチャンネル合計と、UTMなしのYouTube referralを分離する。
+    const youtubeChannelInquiryFilter = andFilter([youtubeChannelFilter(), exactFilter('eventName', INQUIRY_EVENT)]);
+    const youtubeReferralInquiryFilter = andFilter([youtubeReferralFilter(), exactFilter('eventName', INQUIRY_EVENT)]);
+    const [channelDaily, channelSummary, previousChannelSummary, channelInquirySummary,
+      previousChannelInquirySummary, channelInquiryDaily, referralSummary, previousReferralSummary,
+      referralInquirySummary, previousReferralInquirySummary] = await Promise.all([
+      runReport(propertyId, token, {
+        dateRanges, dimensions: [{ name: 'date' }], metrics: summaryMetrics,
+        dimensionFilter: youtubeChannelFilter(), orderBys: [{ dimension: { dimensionName: 'date' } }], limit: 400,
+      }),
+      runReport(propertyId, token, { dateRanges, dimensions: [], metrics: summaryMetrics, dimensionFilter: youtubeChannelFilter(), limit: 1 }),
+      runReport(propertyId, token, { dateRanges: previousDateRanges, dimensions: [], metrics: summaryMetrics, dimensionFilter: youtubeChannelFilter(), limit: 1 }),
+      runReport(propertyId, token, { dateRanges, dimensions: [], metrics: [{ name: 'eventCount' }], dimensionFilter: youtubeChannelInquiryFilter, limit: 1 }),
+      runReport(propertyId, token, { dateRanges: previousDateRanges, dimensions: [], metrics: [{ name: 'eventCount' }], dimensionFilter: youtubeChannelInquiryFilter, limit: 1 }),
+      runReport(propertyId, token, { dateRanges, dimensions: [{ name: 'date' }], metrics: [{ name: 'eventCount' }], dimensionFilter: youtubeChannelInquiryFilter, orderBys: [{ dimension: { dimensionName: 'date' } }], limit: 400 }),
+      runReport(propertyId, token, { dateRanges, dimensions: [], metrics: summaryMetrics, dimensionFilter: youtubeReferralFilter(), limit: 1 }),
+      runReport(propertyId, token, { dateRanges: previousDateRanges, dimensions: [], metrics: summaryMetrics, dimensionFilter: youtubeReferralFilter(), limit: 1 }),
+      runReport(propertyId, token, { dateRanges, dimensions: [], metrics: [{ name: 'eventCount' }], dimensionFilter: youtubeReferralInquiryFilter, limit: 1 }),
+      runReport(propertyId, token, { dateRanges: previousDateRanges, dimensions: [], metrics: [{ name: 'eventCount' }], dimensionFilter: youtubeReferralInquiryFilter, limit: 1 }),
+    ]);
+
+    // utm_id（sessionManualCampaignId）をYouTube動画IDとして、概要欄・固定コメント等の動画別送客を取得する。
+    const [byVideoSessions, byVideoInquiries, previousByVideoSessions, previousByVideoInquiries] = await Promise.all([runReport(propertyId, token, {
       dateRanges, dimensions: [{ name: 'sessionManualCampaignId' }],
       metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
-      dimensionFilter: youtubeDescriptionFilter(),
+      dimensionFilter: youtubeChannelFilter(),
       orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 200,
-    });
-    const byVideoInquiries = await runReport(propertyId, token, {
+    }), runReport(propertyId, token, {
       dateRanges, dimensions: [{ name: 'sessionManualCampaignId' }], metrics: [{ name: 'eventCount' }],
-      dimensionFilter: youtubeInquiryFilter,
+      dimensionFilter: youtubeChannelInquiryFilter,
       orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }], limit: 200,
-    });
-    const previousByVideoSessions = await runReport(propertyId, token, {
+    }), runReport(propertyId, token, {
       dateRanges: previousDateRanges, dimensions: [{ name: 'sessionManualCampaignId' }],
-      metrics: [{ name: 'sessions' }, { name: 'activeUsers' }], dimensionFilter: youtubeDescriptionFilter(), limit: 200,
-    });
-    const previousByVideoInquiries = await runReport(propertyId, token, {
+      metrics: [{ name: 'sessions' }, { name: 'activeUsers' }], dimensionFilter: youtubeChannelFilter(), limit: 200,
+    }), runReport(propertyId, token, {
       dateRanges: previousDateRanges, dimensions: [{ name: 'sessionManualCampaignId' }], metrics: [{ name: 'eventCount' }],
-      dimensionFilter: youtubeInquiryFilter, limit: 200,
-    });
+      dimensionFilter: youtubeChannelInquiryFilter, limit: 200,
+    })]);
     const sessionsById = {}, usersById = {}, inquiriesById = {};
     const previousSessionsById = {}, previousUsersById = {}, previousInquiriesById = {};
     toRows(byVideoSessions).forEach(function (row) {
@@ -253,6 +286,8 @@ module.exports = async (req, res) => {
       youtubeConversionMetric: youtube.conversionMetric,
       inquiryEventName: INQUIRY_EVENT,
       youtubeDescriptionContent: YOUTUBE_DESCRIPTION_CONTENT,
+      youtubeChannelContentPrefix: YOUTUBE_CHANNEL_CONTENT_PREFIX,
+      youtubeReferralSourceMedium: YOUTUBE_REFERRAL_SOURCE_MEDIUM,
       summary: toRows(summary.report)[0] || {},
       youtubeSummary: toRows(youtubeSummary.report)[0] || {},
       previousSummary: toRows(previousSummary.report)[0] || {},
@@ -262,6 +297,16 @@ module.exports = async (req, res) => {
       youtubeInquirySummary: toRows(youtubeInquirySummary)[0] || {},
       previousYoutubeInquirySummary: toRows(previousYoutubeInquirySummary)[0] || {},
       youtubeInquiryDaily: toRows(youtubeInquiryDaily),
+      youtubeChannelSummary: toRows(channelSummary)[0] || {},
+      previousYoutubeChannelSummary: toRows(previousChannelSummary)[0] || {},
+      youtubeChannelInquirySummary: toRows(channelInquirySummary)[0] || {},
+      previousYoutubeChannelInquirySummary: toRows(previousChannelInquirySummary)[0] || {},
+      youtubeChannelDaily: toRows(channelDaily),
+      youtubeChannelInquiryDaily: toRows(channelInquiryDaily),
+      youtubeReferralSummary: toRows(referralSummary)[0] || {},
+      previousYoutubeReferralSummary: toRows(previousReferralSummary)[0] || {},
+      youtubeReferralInquirySummary: toRows(referralInquirySummary)[0] || {},
+      previousYoutubeReferralInquirySummary: toRows(previousReferralInquirySummary)[0] || {},
       period: {
         startDate: isoDaysAgo(days + LAG_DAYS - 1), endDate: isoDaysAgo(LAG_DAYS),
         previousStartDate: isoDaysAgo(days * 2 + LAG_DAYS - 1), previousEndDate: isoDaysAgo(days + LAG_DAYS), days,
