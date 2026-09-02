@@ -198,11 +198,25 @@ module.exports = async (req, res) => {
       out.previousSummary = {};
     }
 
+    // 同じ日数の直前期間を動画単位でも取得し、「伸びた／落ちた」を同条件で比較する。
+    try {
+      const previousVideoParams = new URLSearchParams({
+        ids: 'channel==MINE', startDate: previousStartDate, endDate: previousEndDate,
+        dimensions: REPORTS.video.dimensions, metrics: REPORTS.video.metrics,
+        sort: REPORTS.video.sort, maxResults: String(REPORTS.video.maxResults),
+      });
+      const previousVideoPayload = await authedFetch(`${BASE}?${previousVideoParams}`, token, { method: 'GET' });
+      out.previousVideo = toRows(previousVideoPayload);
+    } catch (e) {
+      out.failed.previousVideo = e.message || 'unknown error';
+      out.previousVideo = [];
+    }
+
     out.period = { startDate, endDate, previousStartDate, previousEndDate, days };
 
     if (out.reports.video && out.reports.video.length) {
       try {
-        out.videoMetadata = await fetchVideoMetadata(token, out.reports.video);
+        out.videoMetadata = await fetchVideoMetadata(token, (out.reports.video || []).concat(out.previousVideo || []));
       } catch (e) {
         // 分析指標は返し、メタデータ補完だけ失敗として明示する。
         out.failed.videoMetadata = e.message || 'unknown error';

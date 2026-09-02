@@ -53,6 +53,7 @@
   .tab[data-tab="overview"]::before { content: "●"; }
   .tab[data-tab="yt"]::before { content: "▶"; }
   .tab[data-tab="ga"]::before { content: "↗"; }
+  .tab[data-tab="ideas"]::before { content: "✦"; }
   .tab:hover { color: #fff; background: rgba(255,255,255,.07); }
   .tab[aria-selected="true"] { color: #fff; background: rgba(92,122,184,.34); box-shadow: inset 0 0 0 1px rgba(160,181,225,.16); }
   .tab:focus-visible, .btn:focus-visible, select:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
@@ -190,6 +191,14 @@
   .diagnosis { border-left: 4px solid var(--series-1); padding: 13px 15px; background: rgba(42,120,214,.06); border-radius: 8px; margin: 12px 0; }
   .diagnosis strong { display: block; margin-bottom: 4px; }
   .measurement-note { display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: 10px; color: var(--muted); font-size: 11px; }
+  .recommend-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .recommend-block { border: 1px solid var(--line); border-radius: 10px; padding: 15px; background: var(--surface-2); }
+  .recommend-block h3 { margin: 0 0 8px; font-size: 15px; }
+  .recommend-block ul { margin: 8px 0 0; padding-left: 20px; }
+  .recommend-block li { margin: 7px 0; line-height: 1.55; }
+  .recommend-block.good { border-left: 4px solid var(--ok); }
+  .recommend-block.caution { border-left: 4px solid var(--warn); }
+  .evidence { color: var(--muted); font-size: 11px; }
   .mom { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; white-space: nowrap; }
   .mom.up { color: var(--ok); }
   .mom.down { color: var(--danger); }
@@ -213,6 +222,7 @@
     header.top .controls { width: 100%; }
     .statusbar { grid-template-columns: 1fr; gap: 7px; }
     .overview-grid { grid-template-columns: 1fr; }
+    .recommend-grid { grid-template-columns: 1fr; }
     .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .tile { padding: 12px; }
     .tile .v { font-size: 23px; }
@@ -231,6 +241,7 @@
       <button class="tab" role="tab" aria-selected="true" data-tab="overview">概要</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="yt">YouTube分析</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="ga">サイト送客・CV</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="ideas">改善提案</button>
     </div>
   </nav>
 </aside>
@@ -272,6 +283,7 @@
   </section>
   <section id="panel-yt" class="hide"><div id="yt-body"></div></section>
   <section id="panel-ga" class="hide"><div id="ga-body"></div></section>
+  <section id="panel-ideas" class="hide"><div id="ideas-body"></div></section>
 
   <footer>
     出典：YouTube Data API v3（公開指標）／ YouTube Analytics API v2（非公開指標）／ GA4 Data API。サイト全体指標は<code>/nensyuagent/</code>、YouTube送客は<code>agent-ch_desc</code>で識別。
@@ -325,6 +337,10 @@
     '動画別': '公開動画情報とYouTube Analyticsを動画IDで結合しています。初期表示は期間内視聴回数の上位20件です。',
     '視聴回数 トップ3': '選択期間のYouTube Analytics viewsが多い3動画です。動画の公開時期が異なるため初速比較ではありません。',
     '今やること': '前期間比、サイト送客率、登録者獲得効率からルールベースで生成した確認候補です。因果関係を断定するものではありません。',
+    '改善提案サマリー': '動画別の今期間と直前同日数、視聴維持率、登録者効率、GA4のセッション帰属問い合わせを結合したルールベース分析です。',
+    '伸びた動画': '今期間500視聴以上で、直前の同日数より視聴数が増えた動画です。前期間データがない新規動画は1,000視聴以上を対象にします。',
+    '伸びなかった動画': '直前期間500視聴以上から視聴数が減った動画です。季節性や公開時期は補正していないため、廃止ではなく再設計候補として扱います。',
+    'CVした動画': 'utm_idにより動画へセッション帰属したCV_求職者allイベントが1件以上ある動画です。直接因果やユニークリード数ではありません。',
     'セッションの推移': 'GA4のsessionsを日別表示します。45日を超える場合は7日単位で合計します。',
     'YouTube概要欄 遷移の推移': 'sessionManualAdContentが「agent-ch_desc」のGA4セッションを日別表示します。',
     '動画別 セッション帰属問い合わせ': 'utm_idを格納するsessionManualCampaignIdを動画IDとしてセッション単位で集計します。別端末・後日の直接再訪・UTM未設定分は動画へ帰属できません。',
@@ -1064,6 +1080,109 @@
     }
   }
 
+  function topicLabel(title) {
+    title = String(title || '');
+    if (/面接|選考|ガクチカ|自己紹介|志望動機/.test(title)) return '面接・選考対策';
+    if (/年収|給与|残業|働き方|福利厚生/.test(title)) return '年収・働き方';
+    if (/転職|企業|商事|銀行|コンサル|SaaS|楽天|GMO|サイバー/.test(title)) return '企業研究・転職';
+    if (/キャリア|管理職|昇進|スキル|市場価値/.test(title)) return 'キャリアノウハウ';
+    return 'その他';
+  }
+
+  function renderIdeas() {
+    var host = document.getElementById('ideas-body');
+    var ana = dashboardState.ana, ga = dashboardState.ga;
+    if (!ana || !ga) { host.innerHTML = '<div class="skeleton" aria-label="改善提案を分析中"></div>'; return; }
+    host.innerHTML = '';
+    if (!ana.ok || !ana.body.reports || !ana.body.reports.video) {
+      host.appendChild(setupCard('改善提案を作成できません', 'YouTube Analyticsの動画別データが必要です。', [])); return;
+    }
+
+    var current = ana.body.reports.video || [], previous = ana.body.previousVideo || [];
+    var metadata = ana.body.videoMetadata || [], names = {}, metaById = {}, prevById = {}, currentById = {}, gaById = {};
+    metadata.forEach(function (v) { names[v.id] = v.title || v.id; metaById[v.id] = v; });
+    if (dashboardState.pub && dashboardState.pub.ok) (dashboardState.pub.body.videos || []).forEach(function (v) { names[v.id] = v.title || v.id; });
+    previous.forEach(function (v) { prevById[v.video] = v; });
+    current.forEach(function (v) { currentById[v.video] = v; });
+    if (ga.ok) (ga.body.byVideo || []).forEach(function (v) { gaById[v.sessionManualCampaignId] = v; });
+
+    var ids = {};
+    current.concat(previous).forEach(function (v) { ids[v.video] = true; });
+    Object.keys(gaById).forEach(function (id) { ids[id] = true; });
+    var rows = Object.keys(ids).map(function (id) {
+      var hasCurrent = !!currentById[id], hasPrevious = !!prevById[id];
+      var c = currentById[id] || {}, p = prevById[id] || {};
+      var views = hasCurrent ? Number(c.views) || 0 : null, prevViews = hasPrevious ? Number(p.views) || 0 : null;
+      var gained = Number(c.subscribersGained) || 0, lost = Number(c.subscribersLost) || 0;
+      var publishedAt = (metaById[id] || {}).publishedAt || '';
+      return { id: id, title: names[id] || id, views: views, previousViews: prevViews,
+        viewDiff: hasCurrent && hasPrevious ? views - prevViews : null,
+        viewRate: hasCurrent && hasPrevious && prevViews ? (views - prevViews) / prevViews : null,
+        isNew: !!(hasCurrent && !hasPrevious && publishedAt && normDate(publishedAt.slice(0, 10)) >= ana.body.period.startDate),
+        retention: c.averageViewPercentage == null ? null : Number(c.averageViewPercentage),
+        netSubs: hasCurrent ? gained - lost : null, subsPerK: views ? (gained - lost) / views * 1000 : null,
+        sessions: Number((gaById[id] || {}).sessions) || 0, inquiries: Number((gaById[id] || {}).inquiries) || 0,
+        topic: topicLabel(names[id] || '') };
+    });
+    var strong = rows.filter(function (v) { return v.views >= 500 && (v.viewDiff > 0 || (v.isNew && v.views >= 1000)); })
+      .sort(function (a, b) { return (b.viewDiff == null ? b.views : b.viewDiff) - (a.viewDiff == null ? a.views : a.viewDiff); }).slice(0, 8);
+    var weak = rows.filter(function (v) { return v.views != null && v.previousViews != null && v.previousViews >= 500 && v.viewDiff < 0; })
+      .sort(function (a, b) { return a.viewDiff - b.viewDiff; }).slice(0, 8);
+    var converted = rows.filter(function (v) { return v.inquiries > 0; }).sort(function (a, b) { return b.inquiries - a.inquiries; });
+
+    var topicMap = {};
+    rows.filter(function (v) { return v.views != null && v.views > 0; }).forEach(function (v) {
+      var t = topicMap[v.topic] || (topicMap[v.topic] = { topic: v.topic, videos: 0, views: 0, sessions: 0, inquiries: 0, retentionWeight: 0 });
+      t.videos += 1; t.views += v.views; t.sessions += v.sessions; t.inquiries += v.inquiries;
+      t.retentionWeight += (v.retention || 0) * v.views;
+    });
+    var topics = Object.keys(topicMap).map(function (k) {
+      var t = topicMap[k]; t.avgViews = t.videos ? t.views / t.videos : 0; t.retention = t.views ? t.retentionWeight / t.views : 0; return t;
+    }).filter(function (t) { return t.videos >= 2; }).sort(function (a, b) { return b.avgViews - a.avgViews; });
+    var bestTopic = topics[0], lowestTopic = topics.length > 1 ? topics[topics.length - 1] : null;
+
+    host.appendChild(card('改善提案サマリー',
+      '選択期間と直前の同日数を動画IDで比較。CVはutm_idによるセッション帰属イベントで、因果やユニークリードを示すものではありません。',
+      tiles([
+        ['伸びた動画', nf(strong.length) + '本', '500視聴以上かつ前期間から増加'],
+        ['伸びなかった動画', nf(weak.length) + '本', '前期間500視聴以上から減少'],
+        ['CVした動画', nf(converted.length) + '本', '問い合わせイベントが帰属'],
+        ['分析対象', nf(current.length) + '本', 'YouTube Analytics上位200本']
+      ])));
+
+    var goodItems = [];
+    if (bestTopic) goodItems.push('「' + bestTopic.topic + '」を優先。1本平均' + nf(Math.round(bestTopic.avgViews)) + '視聴、加重維持率' + pct(bestTopic.retention, 1) + 'です。');
+    if (strong[0]) goodItems.push('伸長最大の「' + strong[0].title + '」を横展開。' +
+      (strong[0].viewDiff == null ? '今期間公開で' + nf(strong[0].views) + '視聴' : '前期間差' + (strong[0].viewDiff >= 0 ? '+' : '') + nf(strong[0].viewDiff) + '視聴') + 'です。');
+    if (converted[0]) goodItems.push('CV帰属のある「' + converted[0].title + '」のテーマ・概要欄CTA・導線を再利用。ただし現在の問い合わせは' + nf(converted[0].inquiries) + 'イベントのため追加検証が必要です。');
+    if (!converted.length) goodItems.push('CV帰属動画がまだないため、上位動画へ統一CTAと正しいutm_idを設定して検証母数を作ります。');
+    var avoidItems = [];
+    if (weak[0]) avoidItems.push('「' + weak[0].title + '」と同じ切り口は、そのまま再制作しない。前期間差' + nf(weak[0].viewDiff) + '視聴のため、タイトル・冒頭・尺を変えて再検証します。');
+    if (lowestTopic) avoidItems.push('「' + lowestTopic.topic + '」は優先度を下げる。1本平均' + nf(Math.round(lowestTopic.avgViews)) + '視聴で、対象カテゴリ内では最下位です。');
+    avoidItems.push('CVが付いていないだけで企画を即廃止しない。utm_id未設定や44セッションという小さい母数を先に確認します。');
+    host.appendChild(el('<div class="recommend-grid"><div class="recommend-block good"><h3>今後、出した方がよい動画</h3><ul>' +
+      goodItems.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
+      '<div class="recommend-block caution"><h3>現状のまま増やさない方がよい動画</h3><ul>' +
+      avoidItems.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div></div>'));
+
+    function analysisTable(title, note, data) {
+      var cols = [
+        { key: 'title', head: '動画', render: function (v) { return '<a href="https://www.youtube.com/watch?v=' + esc(v.id) + '" target="_blank" rel="noopener">' + esc(v.title) + '</a><span class="evidence">' + esc(v.topic) + '</span>'; } },
+        { key: 'views', head: '今期間視聴', num: true, render: function (v) { return esc(v.views == null ? '上位200外' : nf(v.views)); } },
+        { key: 'previousViews', head: '前期間視聴', num: true, render: function (v) { return esc(v.previousViews == null ? (v.isNew ? '公開前' : '上位200外') : nf(v.previousViews)); } },
+        { key: 'viewDiff', head: '視聴増減', num: true, render: function (v) { return esc(v.viewDiff == null ? '比較不可' : (v.viewDiff > 0 ? '+' : '') + nf(v.viewDiff)); } },
+        { key: 'retention', head: '維持率', num: true, render: function (v) { return esc(v.retention == null ? '—' : pct(v.retention, 1)); } },
+        { key: 'subsPerK', head: '登録者純増 / 1,000視聴', num: true, render: function (v) { return esc(v.subsPerK == null ? '—' : nf(v.subsPerK)); } },
+        { key: 'sessions', head: '概要欄遷移', num: true, render: function (v) { return esc(nf(v.sessions)); } },
+        { key: 'inquiries', head: '問い合わせイベント', num: true, render: function (v) { return esc(nf(v.inquiries)); } }
+      ];
+      host.appendChild(card(title, note, data.length ? sortableTable(cols, data, { defaultSort: title.indexOf('伸びなかった') >= 0 ? 'viewDiff' : 'views' }) : el('<p class="note">該当データなし</p>')));
+    }
+    analysisTable('伸びた動画', '今期間500視聴以上で、直前の同日数より視聴が増えた動画。新規公開で1,000視聴以上も含みます。', strong);
+    analysisTable('伸びなかった動画', '直前期間500視聴以上から視聴が減った動画。公開本数や季節性による影響もあるため、廃止判断ではなく再設計候補です。', weak);
+    analysisTable('CVした動画', 'utm_idで動画へ帰属した問い合わせイベントが1件以上ある動画。セッション単位の帰属であり、直接因果ではありません。', converted);
+  }
+
   var dashboardState = { pub: null, ana: null, ga: null, monthlyAna: null, monthlyGa: null };
 
   function renderOverview() {
@@ -1244,10 +1363,11 @@
       renderYouTube(res[0], res[1]);
       if (dashboardState.ga) renderGA4(dashboardState.ga);
       renderOverview();
+      renderIdeas();
     });
 
     getJSON('/api/ga4?days=' + days).catch(softFail).then(function (r) {
-      dashboardState.ga = r; renderGA4(r); renderOverview();
+      dashboardState.ga = r; renderGA4(r); renderOverview(); renderIdeas();
     });
 
     if (!dashboardState.monthlyAna || !dashboardState.monthlyGa) {
@@ -1268,7 +1388,7 @@
       x.setAttribute('aria-selected', String(selected));
       document.getElementById('panel-' + x.dataset.tab).classList.toggle('hide', !selected);
     });
-    if (updateHash) history.replaceState(null, '', name === 'overview' ? '#overview' : name === 'yt' ? '#youtube' : '#ga4');
+    if (updateHash) history.replaceState(null, '', name === 'overview' ? '#overview' : name === 'yt' ? '#youtube' : name === 'ga' ? '#ga4' : '#ideas');
   }
 
   document.addEventListener('mouseover', function (e) {
@@ -1307,7 +1427,7 @@
   document.getElementById('reload').addEventListener('click', loadAll);
   document.getElementById('range').addEventListener('change', loadAll);
 
-  var initialHash = location.hash === '#youtube' ? 'yt' : location.hash === '#ga4' ? 'ga' : 'overview';
+  var initialHash = location.hash === '#youtube' ? 'yt' : location.hash === '#ga4' ? 'ga' : location.hash === '#ideas' ? 'ideas' : 'overview';
   selectTab(initialHash, false);
   loadAll();
 })();
