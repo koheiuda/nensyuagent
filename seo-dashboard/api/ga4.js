@@ -1,0 +1,3 @@
+const SOURCE='https://youtube-dashboard-nine-pink.vercel.app/api/ga4?days=28';
+module.exports=async(req,res)=>{res.setHeader('content-type','application/json');res.setHeader('cache-control','s-maxage=900, stale-while-revalidate=1800');try{const r=await fetch(SOURCE),b=await r.json();if(!r.ok)throw Error(b.message||'既存GA4 API取得失敗');const s=b.summary||{},cv=b.inquirySummary||{};res.end(JSON.stringify({source:'GA4 Data API（既存の年収エージェント分析基盤）',propertyId:String(b.propertyId||'').trim(),pathPrefix:b.pathPrefix,period:b.period||{startDate:b.startDate,endDate:b.endDate},summary:{sessions:Number(s.sessions||0),conversions:Number(cv.eventCount||0)},byPage:b.byPage||[],fetchedAt:b.fetchedAt}))}catch(e){res.statusCode=502;res.end(JSON.stringify({message:e.message}))}};
+
